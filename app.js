@@ -105,6 +105,7 @@ const dateRangeLabel = () => {
 };
 if (!state.dailySalesDate) state.dailySalesDate = dateKey();
 else if (state.dailySalesDate !== dateKey()) { state.grossSales = 0; state.dailySalesDate = dateKey(); }
+state.recentTransactions.forEach((tx, index) => { if (!tx.date) tx.date = formatDate(new Date(today().getTime() - index * 86400000)); });
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const wholeMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -288,7 +289,7 @@ function renderReports(meta) {
     <div class="kpi-grid">${kpi('Gross Revenue', money(reportRevenue), 'Updated from POS payment records', 'positive')}${kpi('Cost of Goods Sold (COGS)', money(reportCogs), `${reportRevenue ? (reportCogs / reportRevenue * 100).toFixed(1) : '0.0'}% of revenue`, '')}${kpi('Gross Profit', money(reportProfit), `${reportRevenue ? (reportProfit / reportRevenue * 100).toFixed(1) : '0.0'}% gross margin`, 'positive')}${kpi('Spoilage & Variance Loss', money(state.spoilageLoss), `${reportRevenue ? (state.spoilageLoss / reportRevenue * 100).toFixed(2) : '0.00'}% of gross revenue`, '')}</div>
     <div class="report-grid"><div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Sales Breakdown by Payment Channel</div><div class="panel-caption">Verified POS shift settlements across Cash and E-Wallets</div></div><span class="status-pill ok">${orderTotal.toLocaleString()} Orders</span></div><div class="payment-bars">${paymentRows.map((row) => { const amount = state.paymentTotals[row.key]; const pct = paymentTotal ? amount / paymentTotal * 100 : 0; return `<div class="payment-bar-line"><div class="payment-bar-head"><span>${row.label} (${state.paymentCounts[row.key].toLocaleString()} orders)</span><span>${money(amount)} · ${pct.toFixed(1)}%</span></div><div class="progress ${row.cls}"><span style="width:${pct}%"></span></div></div>`; }).join('')}</div><div class="subtext" style="margin-top:18px">Total Receipts Audited: ${orderTotal.toLocaleString()} POS Transactions · Average Order Value: ${money(orderTotal ? paymentTotal / orderTotal : 0)}</div></div>
       <div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Top-Selling Menu Items & Margin Analysis</div><div class="panel-caption">Ranked by Paradahan Branch revenue and BOM ingredient cost</div></div></div><div class="ranking">${topProducts.map((item, index) => `<div class="rank-row"><span class="rank-number">${index + 1}</span><div><div class="rank-name">${esc(item.name)}</div><div class="rank-meta">${item.sold.toLocaleString()} sold</div></div><strong class="money">${wholeMoney(item.revenue)}</strong></div>`).join('')}</div></div></div>
-    <div class="panel" style="margin-top:15px"><div class="panel-title-row"><div><div class="panel-title">Itemized Inventory Usage & Current Asset Valuation Summary</div><div class="panel-caption">Live view of raw ingredient movement and ending stock value</div></div><button class="text-link" data-nav="inventory">View Full Valuation Sheet →</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Raw Ingredient</th><th>Beginning</th><th>PO Restocks</th><th>BOM Usage</th><th>Ending Stock</th><th>Unit Cost</th><th>Asset Value</th></tr></thead><tbody>${state.inventory.slice(0, 4).map((item) => `<tr><td><strong>${esc(item.name)}</strong></td><td>${item.beginning} ${item.unit}</td><td style="color:var(--green);font-weight:800">+${item.poRestocks} ${item.unit}</td><td style="color:var(--red);font-weight:800">-${item.bomUsage} ${item.unit}</td><td><strong>${item.qty} ${item.unit}</strong></td><td>${money(item.cost)}</td><td class="money">${money(item.qty * item.cost)}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;justify-content:space-between;margin-top:14px"><span class="subtext">Showing top 4 high-value ingredients · Total Branch Inventory Asset Valuation (All ${state.inventory.length} items): ${money(valuation)}</span><button class="text-link" data-nav="inventory">View Full Valuation Sheet →</button></div></div>`;
+    <div class="panel" style="margin-top:15px"><div class="panel-title-row"><div><div class="panel-title">Itemized Inventory Usage & Current Asset Valuation Summary</div><div class="panel-caption">Live view of raw ingredient movement and ending stock value</div></div><button class="text-link" data-nav="inventory">View Full Valuation Sheet →</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Raw Ingredient</th><th>Beginning</th><th>PO Restocks</th><th>BOM Usage</th><th>Ending Stock</th><th>Unit Cost</th><th>Asset Value</th></tr></thead><tbody>${state.inventory.slice().sort((a, b) => (b.qty * b.cost) - (a.qty * a.cost)).slice(0, 4).map((item) => `<tr><td><strong>${esc(item.name)}</strong></td><td>${item.beginning} ${item.unit}</td><td style="color:var(--green);font-weight:800">+${item.poRestocks} ${item.unit}</td><td style="color:var(--red);font-weight:800">-${item.bomUsage} ${item.unit}</td><td><strong>${item.qty} ${item.unit}</strong></td><td>${money(item.cost)}</td><td class="money">${money(item.qty * item.cost)}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;justify-content:space-between;margin-top:14px"><span class="subtext">Showing top 4 high-value ingredients · Total Branch Inventory Asset Valuation (All ${state.inventory.length} items): ${money(valuation)}</span><button class="text-link" data-nav="inventory">View Full Valuation Sheet →</button></div></div>`;
 }
 function render() {
   document.querySelector('#app').innerHTML = shell();
@@ -385,8 +386,12 @@ function openModal(type, payload = {}) {
 function closeModal() { document.querySelector('#modalRoot').innerHTML = ''; }
 
 function exportPrintableReport() {
-  const rows = state.inventory.map((item) => `<tr><td>${esc(item.name)}</td><td>${item.qty} ${esc(item.unit)}</td><td>${item.reorder}</td><td>${money(item.qty * item.cost)}</td></tr>`).join('');
-  const html = `<!doctype html><html><head><title>FiveStar ERP Report</title><style>body{font:14px Arial;padding:32px;color:#172338}h1{margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}th{background:#f2f4f7}</style></head><body><h1>FiveStar ERP</h1><p>Inventory Valuation Report · ${new Date().toLocaleDateString()}</p><table><thead><tr><th>Ingredient</th><th>Stock</th><th>Reorder Point</th><th>Asset Value</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  const revenue = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+  const cogs = state.inventory.reduce((sum, item) => sum + Number(item.bomUsage || 0) * Number(item.cost || 0), 0);
+  const payments = Object.entries(state.paymentTotals).map(([method, amount]) => `<tr><td>${esc(method)}</td><td>${Number(state.paymentCounts[method] || 0).toLocaleString()}</td><td>${money(amount)}</td></tr>`).join('');
+  const products = state.menuItems.slice().sort((a, b) => (state.menuMetrics[b.id]?.revenue || 0) - (state.menuMetrics[a.id]?.revenue || 0)).map((item) => `<tr><td>${esc(item.name)}</td><td>${Number(state.menuMetrics[item.id]?.sold || 0).toLocaleString()}</td><td>${money(state.menuMetrics[item.id]?.revenue || 0)}</td></tr>`).join('');
+  const inventory = state.inventory.slice().sort((a, b) => (b.qty * b.cost) - (a.qty * a.cost)).map((item) => `<tr><td>${esc(item.name)}</td><td>${item.qty} ${esc(item.unit)}</td><td>${item.reorder}</td><td>${money(item.qty * item.cost)}</td></tr>`).join('');
+  const html = `<!doctype html><html><head><title>FiveStar ERP Operations Report</title><style>body{font:13px Arial;padding:28px;color:#172338}h1{margin-bottom:4px}h2{margin:24px 0 8px;font-size:16px}.summary{display:flex;gap:24px;margin:18px 0}.summary div{padding:12px;background:#f2f4f7;flex:1}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#f2f4f7}@media print{body{padding:0}}</style></head><body><h1>FiveStar ERP</h1><p>Operations Report · ${dateRangeLabel()}</p><div class="summary"><div>Gross Revenue<br><strong>${money(revenue)}</strong></div><div>Cost of Goods Sold<br><strong>${money(cogs)}</strong></div><div>Gross Profit<br><strong>${money(revenue-cogs)}</strong></div></div><h2>Payment Channels</h2><table><thead><tr><th>Method</th><th>Orders</th><th>Amount</th></tr></thead><tbody>${payments}</tbody></table><h2>Menu Performance</h2><table><thead><tr><th>Menu Item</th><th>Units Sold</th><th>Revenue</th></tr></thead><tbody>${products}</tbody></table><h2>Inventory Valuation</h2><table><thead><tr><th>Ingredient</th><th>Stock</th><th>Reorder Point</th><th>Asset Value</th></tr></thead><tbody>${inventory}</tbody></table></body></html>`;
   const win = window.open('', '_blank');
   if (!win) return openToast('Pop-up blocked', 'Allow pop-ups to print or save this report as PDF.', 'error');
   win.document.write(html); win.document.close(); win.focus(); win.print();
@@ -401,14 +406,35 @@ function exportPurchaseOrders() {
 }
 
 function exportCSV() {
-  const lines = [['Ingredient', 'Category', 'Current Stock', 'Unit', 'Reorder Point', 'Unit Cost', 'Asset Value'], ...state.inventory.map((item) => [item.name, item.category, item.qty, item.unit, item.reorder, item.cost, item.qty * item.cost])];
-  const csv = lines.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
+  const revenue = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+  const cogs = state.inventory.reduce((sum, item) => sum + Number(item.bomUsage || 0) * Number(item.cost || 0), 0);
+  const lines = [
+    ['FiveStar ERP Operations Report', dateRangeLabel()],
+    [],
+    ['Sales Summary', 'Amount'],
+    ['Gross Revenue', revenue],
+    ['Cost of Goods Sold', cogs],
+    ['Gross Profit', revenue - cogs],
+    [],
+    ['Payment Method', 'Orders', 'Amount'],
+    ...Object.entries(state.paymentTotals).map(([method, amount]) => [method, state.paymentCounts[method] || 0, amount]),
+    [],
+    ['Menu Item', 'Units Sold', 'Revenue'],
+    ...state.menuItems.slice().sort((a, b) => (state.menuMetrics[b.id]?.revenue || 0) - (state.menuMetrics[a.id]?.revenue || 0)).map((item) => [item.name, state.menuMetrics[item.id]?.sold || 0, state.menuMetrics[item.id]?.revenue || 0]),
+    [],
+    ['Ingredient', 'Category', 'Current Stock', 'Unit', 'Reorder Point', 'Unit Cost', 'Asset Value'],
+    ...state.inventory.map((item) => [item.name, item.category, item.qty, item.unit, item.reorder, item.cost, item.qty * item.cost])
+  ];
+  const csv = lines.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a'); link.href = url; link.download = 'fivestar-inventory-report.csv'; link.click(); URL.revokeObjectURL(url);
-  openToast('CSV export ready', 'The inventory valuation sheet was downloaded for your demo.');
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'fivestar-operations-report.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+  openToast('Operations report exported', 'Sales, payment, menu, and inventory data were downloaded as CSV.');
 }
-
 function updatePurchaseOrderEstimate(form) {
   if (!form) return;
   const ingredient = getInventoryItem(form.elements.ingredient.value);
