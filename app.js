@@ -70,7 +70,7 @@ if (!Array.isArray(state.inventory) || !state.inventory.length) state.inventory 
 if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = defaultState.purchaseOrders.map((item) => ({ ...item }));
 if (!Array.isArray(state.recentTransactions)) state.recentTransactions = defaultState.recentTransactions.map((item) => ({ ...item }));
 if (!Array.isArray(state.auditLog)) state.auditLog = [];
-if (!state.reportRange || state.reportRange === 'Nov 1 – Nov 22, 2026') state.reportRange = dateRangeLabel();
+
 state.spoilageLoss ??= defaultState.spoilageLoss;
 if (!Array.isArray(state.salesByDay) || state.salesByDay.length !== 7 || Math.max(...state.salesByDay) < 1000) state.salesByDay = [...defaultState.salesByDay];
 state.paymentCounts = { ...defaultState.paymentCounts, ...(state.paymentCounts || {}) };
@@ -102,6 +102,7 @@ const dateRangeLabel = () => {
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   return `${start.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} – ${formatDate(now)}`;
 };
+if (!state.reportRange || state.reportRange === 'Nov 1 – Nov 22, 2026') state.reportRange = dateRangeLabel();
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const wholeMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -207,7 +208,7 @@ function renderDashboard(meta) {
     </div>
     <div class="grid-2">
       <div class="panel"><div class="panel-title-row"><div><div class="panel-title">Weekly Sales vs. Raw Ingredient Consumption (₱)</div><div class="panel-caption">Paradahan Branch POS revenue compared against BOM ingredient usage</div></div><span class="status-pill ok">Gross Sales</span></div>
-        <div class="chart"><div class="chart-axis"><span>${wholeMoney(maxSales)}</span><span>${wholeMoney(maxSales * .66)}</span><span>${wholeMoney(maxSales * .33)}</span><span>₱0</span></div><div class="chart-main">${state.salesByDay.map((value, index) => `<div class="chart-group"><div class="bar" style="height:${Math.max(3, (value / maxSales) * 82)}%"></div><div class="bar alt" style="height:${Math.max(2, ((state.inventory.reduce((sum, item) => sum + item.bomUsage * item.cost, 0) / 7) / maxSales) * 82)}%"></div><span class="chart-day">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</span></div>`).join('')}</div></div>
+        <div class="chart"><div class="chart-axis"><span>${wholeMoney(maxSales)}</span><span>${wholeMoney(maxSales * .66)}</span><span>${wholeMoney(maxSales * .33)}</span><span>₱0</span></div><div class="chart-main">${state.salesByDay.map((value, index) => `<div class="chart-group"><div class="bar" style="height:${Math.max(3, (value / maxSales) * 82)}%"></div><div class="bar alt" style="height:${Math.max(2, (value * 0.363 / maxSales) * 82)}%"></div><span class="chart-day">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</span></div>`).join('')}</div></div>
         <div class="legend"><span><i></i>Gross Sales</span><span><i class="alt"></i>Stock Cost</span></div>
       </div>
       <div class="panel"><div class="panel-title-row"><div><div class="panel-title">Live Low-Stock Watchlist</div><div class="panel-caption">Reorder points updated from the inventory ledger</div></div><span class="status-pill critical">${lowStock.length} alerts</span></div>
@@ -271,7 +272,7 @@ function renderSuppliers(meta) {
 function renderReports(meta) {
   const valuation = state.inventory.reduce((sum, item) => sum + item.qty * item.cost, 0);
   const reportRevenue = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
-  const reportCogs = Math.round(reportRevenue * 0.363);
+  const reportCogs = state.inventory.reduce((sum, item) => sum + Number(item.bomUsage || 0) * Number(item.cost || 0), 0);
   const reportProfit = reportRevenue - reportCogs;
   const paymentRows = [
     { key: 'Cash', label: 'Cash Payments', cls: '' },
@@ -281,8 +282,8 @@ function renderReports(meta) {
   const paymentTotal = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
   const orderTotal = Object.values(state.paymentCounts).reduce((sum, value) => sum + value, 0);
   const topProducts = state.menuItems.map((item) => ({ ...item, ...(state.menuMetrics[item.id] || { sold: 0, revenue: 0 }) })).sort((a, b) => b.revenue - a.revenue).slice(0, 4);
-  return `${pageHead(meta, `<div style="display:flex;align-items:center;gap:7px"><label class="field-label" style="margin:0">Date Range</label><select class="field-select" id="reportRange" style="width:auto"><option ${state.reportRange === 'Nov 1 – Nov 22, 2026' ? 'selected' : ''}>Nov 1 – Nov 22, 2026</option><option ${state.reportRange === 'Oct 1 – Oct 31, 2026' ? 'selected' : ''}>Oct 1 – Oct 31, 2026</option><option ${state.reportRange === 'Q4 2026' ? 'selected' : ''}>Q4 2026</option></select></div><button class="btn btn-outline" data-action="export-csv">Export CSV</button><button class="btn btn-primary" data-action="export-pdf">Export PDF Report</button>`)}
-    <div class="kpi-grid">${kpi('Monthly Gross Revenue', money(reportRevenue), '+18.4% vs last month', 'positive')}${kpi('Cost of Goods Sold (COGS)', money(reportCogs), '36.3% Food Cost Ratio', '')}${kpi('Gross Profit Margin', money(reportProfit), '63.7% Net Margin', 'positive')}${kpi('Spoilage & Variance Loss', money(state.spoilageLoss), `${reportRevenue ? (state.spoilageLoss / reportRevenue * 100).toFixed(2) : '0.00'}% of gross revenue`, '')}</div>
+  return `${pageHead(meta, `<div class="date-chip">Period: ${dateRangeLabel()}</div><button class="btn btn-outline" data-action="export-csv">Export CSV</button><button class="btn btn-primary" data-action="export-pdf">Export PDF Report</button>`)}
+    <div class="kpi-grid">${kpi('Gross Revenue', money(reportRevenue), 'Updated from POS payment records', 'positive')}${kpi('Cost of Goods Sold (COGS)', money(reportCogs), `${reportRevenue ? (reportCogs / reportRevenue * 100).toFixed(1) : '0.0'}% of revenue`, '')}${kpi('Gross Profit', money(reportProfit), `${reportRevenue ? (reportProfit / reportRevenue * 100).toFixed(1) : '0.0'}% gross margin`, 'positive')}${kpi('Spoilage & Variance Loss', money(state.spoilageLoss), `${reportRevenue ? (state.spoilageLoss / reportRevenue * 100).toFixed(2) : '0.00'}% of gross revenue`, '')}</div>
     <div class="report-grid"><div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Sales Breakdown by Payment Channel</div><div class="panel-caption">Verified POS shift settlements across Cash and E-Wallets</div></div><span class="status-pill ok">${orderTotal.toLocaleString()} Orders</span></div><div class="payment-bars">${paymentRows.map((row) => { const amount = state.paymentTotals[row.key]; const pct = paymentTotal ? amount / paymentTotal * 100 : 0; return `<div class="payment-bar-line"><div class="payment-bar-head"><span>${row.label} (${state.paymentCounts[row.key].toLocaleString()} orders)</span><span>${money(amount)} · ${pct.toFixed(1)}%</span></div><div class="progress ${row.cls}"><span style="width:${pct}%"></span></div></div>`; }).join('')}</div><div class="subtext" style="margin-top:18px">Total Receipts Audited: ${orderTotal.toLocaleString()} POS Transactions · Average Order Value: ${money(orderTotal ? paymentTotal / orderTotal : 0)}</div></div>
       <div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Top-Selling Menu Items & Margin Analysis</div><div class="panel-caption">Ranked by Paradahan Branch revenue and BOM ingredient cost</div></div></div><div class="ranking">${topProducts.map((item, index) => `<div class="rank-row"><span class="rank-number">${index + 1}</span><div><div class="rank-name">${esc(item.name)}</div><div class="rank-meta">${item.sold.toLocaleString()} sold</div></div><strong class="money">${wholeMoney(item.revenue)}</strong></div>`).join('')}</div></div></div>
     <div class="panel" style="margin-top:15px"><div class="panel-title-row"><div><div class="panel-title">Itemized Inventory Usage & Current Asset Valuation Summary</div><div class="panel-caption">Live view of raw ingredient movement and ending stock value</div></div><button class="text-link" data-nav="inventory">View Full Valuation Sheet →</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Raw Ingredient</th><th>Beginning</th><th>PO Restocks</th><th>BOM Usage</th><th>Ending Stock</th><th>Unit Cost</th><th>Asset Value</th></tr></thead><tbody>${state.inventory.slice(0, 4).map((item) => `<tr><td><strong>${esc(item.name)}</strong></td><td>${item.beginning} ${item.unit}</td><td style="color:var(--green);font-weight:800">+${item.poRestocks} ${item.unit}</td><td style="color:var(--red);font-weight:800">-${item.bomUsage} ${item.unit}</td><td><strong>${item.qty} ${item.unit}</strong></td><td>${money(item.cost)}</td><td class="money">${money(item.qty * item.cost)}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;justify-content:space-between;margin-top:14px"><span class="subtext">Showing top 4 high-value ingredients · Total Branch Inventory Asset Valuation (All ${state.inventory.length} items): ${money(valuation)}</span><span class="text-link">View Full Valuation Sheet →</span></div></div>`;
@@ -444,10 +445,6 @@ document.addEventListener('input', (event) => {
   if (event.target.id === 'posSearch') { state.posSearch = event.target.value; render(); const input = document.querySelector('#posSearch'); input?.focus(); input?.setSelectionRange(input.value.length, input.value.length); }
   if (event.target.id === 'inventorySearch') { state.inventorySearch = event.target.value; render(); const input = document.querySelector('#inventorySearch'); input?.focus(); input?.setSelectionRange(input.value.length, input.value.length); }
   if (event.target.id === 'tendered') { state.tendered = Number(event.target.value || 0); render(); const input = document.querySelector('#tendered'); input?.focus(); input?.setSelectionRange(input.value.length, input.value.length); }
-});
-
-document.addEventListener('change', (event) => {
-  if (event.target.id === 'reportRange') { state.reportRange = event.target.value; save(); render(); }
 });
 
 document.addEventListener('submit', (event) => {
