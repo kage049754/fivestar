@@ -37,6 +37,7 @@ const defaultState = {
   payment: 'Cash',
   tendered: 1000,
   grossSales: 18450,
+  dailySalesDate: '',
   completedOrders: 142,
   paymentCounts: { Cash: 1412, GCash: 874, Maya: 318 },
   paymentTotals: { Cash: 185846, GCash: 114688, Maya: 42176 },
@@ -96,11 +97,14 @@ const navItems = [
 
 const today = () => new Date();
 const formatDate = (date = today()) => date.toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' });
+const dateKey = (date = today()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const dateRangeLabel = () => {
   const now = today();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   return `${start.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} – ${formatDate(now)}`;
 };
+if (!state.dailySalesDate) state.dailySalesDate = dateKey();
+else if (state.dailySalesDate !== dateKey()) { state.grossSales = 0; state.dailySalesDate = dateKey(); }
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const wholeMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -202,7 +206,7 @@ function renderDashboard(meta) {
       ${kpi(`Today's Gross Sales · ${formatDate()}`, money(state.grossSales), 'Updated after each completed sale', 'positive')}
       ${kpi('Completed POS Orders', `${state.completedOrders} Orders`, 'BOM stock auto-synced', '')}
       ${kpi('Low-Stock Alerts', `${lowStock.length} Ingredients`, lowStock.length ? 'Critical · Reorder Needed' : 'All levels healthy', 'alert')}
-      ${kpi('Pending Supplier POs', `${pending} Orders`, `${money(state.purchaseOrders.filter((po) => po.status === 'Pending').reduce((sum, po) => sum + po.total, 0))} incoming`, '')}
+      ${kpi('Open Supplier POs', `${pending} Orders`, `${money(state.purchaseOrders.filter((po) => po.status === 'Pending').reduce((sum, po) => sum + po.total, 0))} incoming`, '')}
     </div>
     <div class="grid-2">
       <div class="panel"><div class="panel-title-row"><div><div class="panel-title">Weekly Sales vs. Raw Ingredient Consumption (₱)</div><div class="panel-caption">Paradahan Branch POS revenue compared against BOM ingredient usage</div></div><span class="status-pill ok">Gross Sales</span></div>
@@ -345,6 +349,7 @@ function completeSale() {
   const unavailable = Object.entries(deductions).filter(([id, qty]) => (getInventoryItem(id)?.qty || 0) < qty);
   if (unavailable.length) return openToast('Insufficient stock', unavailable.map(([id, qty]) => `${getInventoryItem(id)?.name || id}: need ${qty}`).join(' · '), 'error');
   Object.entries(deductions).forEach(([id, amount]) => adjustInventory(id, -amount, 'bom'));
+  if (state.dailySalesDate !== dateKey()) { state.grossSales = 0; state.dailySalesDate = dateKey(); }
   state.grossSales += totals.total;
   state.completedOrders += 1;
   state.salesByDay[(today().getDay() + 6) % 7] += totals.total;
