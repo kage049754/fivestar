@@ -45,17 +45,17 @@ const defaultState = {
   inventory: defaultInventory,
   cart: [{ id: 'classic', qty: 2 }, { id: 'whole', qty: 1 }, { id: 'soda', qty: 1 }],
   purchaseOrders: [
-    { id: 'PO-2026-0118', date: ${dateExpr(0)}, supplier: 'Cavite Prime Poultry Supply', items: '30× Fresh Chicken Cuts (8-pc)', lines: [{ id: 'chicken', qty: 30 }], total: 16800, status: 'Pending', received: false },
-    { id: 'PO-2026-0117', date: ${dateExpr(1)}, supplier: 'South Luzon Food Ingredients', items: '6× Breading Mix, 4× Cooking Oil', lines: [{ id: 'breading', qty: 6 }, { id: 'oil', qty: 4 }], total: 9640, status: 'In Transit', received: false },
-    { id: 'PO-2026-0116', date: ${dateExpr(3)}, supplier: 'MetroPack Cavite Trading', items: '15× Meal Boxes, 10× Family Buckets', lines: [{ id: 'boxes', qty: 15 }], total: 4350, status: 'Delivered', received: true },
-    { id: 'PO-2026-0115', date: ${dateExpr(5)}, supplier: 'Cavite Prime Poultry Supply', items: '25× Chicken Cuts, 15× Chicken Fillet', lines: [{ id: 'chicken', qty: 25 }, { id: 'fillet', qty: 15 }], total: 17150, status: 'Delivered', received: true },
-    { id: 'PO-2026-0114', date: ${dateExpr(7)}, supplier: 'South Luzon Food Ingredients', items: '8× Five Star Breading Mix', lines: [{ id: 'breading', qty: 8 }], total: 5120, status: 'Delivered', received: true }
+    { id: 'PO-2026-0118', date: new Date(Date.now() - 0 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), supplier: 'Cavite Prime Poultry Supply', items: '30× Fresh Chicken Cuts (8-pc)', lines: [{ id: 'chicken', qty: 30 }], total: 16800, status: 'Pending', received: false },
+    { id: 'PO-2026-0117', date: new Date(Date.now() - 1 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), supplier: 'South Luzon Food Ingredients', items: '6× Breading Mix, 4× Cooking Oil', lines: [{ id: 'breading', qty: 6 }, { id: 'oil', qty: 4 }], total: 9640, status: 'In Transit', received: false },
+    { id: 'PO-2026-0116', date: new Date(Date.now() - 3 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), supplier: 'MetroPack Cavite Trading', items: '15× Meal Boxes, 10× Family Buckets', lines: [{ id: 'boxes', qty: 15 }], total: 4350, status: 'Delivered', received: true },
+    { id: 'PO-2026-0115', date: new Date(Date.now() - 5 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), supplier: 'Cavite Prime Poultry Supply', items: '25× Chicken Cuts, 15× Chicken Fillet', lines: [{ id: 'chicken', qty: 25 }, { id: 'fillet', qty: 15 }], total: 17150, status: 'Delivered', received: true },
+    { id: 'PO-2026-0114', date: new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), supplier: 'South Luzon Food Ingredients', items: '8× Five Star Breading Mix', lines: [{ id: 'breading', qty: 8 }], total: 5120, status: 'Delivered', received: true }
   ],
   recentTransactions: [
-    { id: 'OR-2026-0842', date: ${dateExpr(0)}, cashier: 'M. Santos', items: '2× Classic Chicken Meal, 1× 1.5L Soda', payment: 'GCash', amount: 245 },
-    { id: 'OR-2026-0841', date: ${dateExpr(1)}, cashier: 'M. Santos', items: '1× Whole Fried Chicken Family Pack', payment: 'Cash', amount: 420 },
-    { id: 'OR-2026-0840', date: ${dateExpr(2)}, cashier: 'M. Santos', items: '3× Spicy Chicken Rice Bowl', payment: 'Maya', amount: 297 },
-    { id: 'OR-2026-0839', date: ${dateExpr(3)}, cashier: 'M. Santos', items: '2× Crispy Chicken Popcorn (Large)', payment: 'Cash', amount: 170 }
+    { id: 'OR-2026-0842', date: new Date(Date.now() - 0 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), cashier: 'M. Santos', items: '2× Classic Chicken Meal, 1× 1.5L Soda', payment: 'GCash', amount: 245 },
+    { id: 'OR-2026-0841', date: new Date(Date.now() - 1 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), cashier: 'M. Santos', items: '1× Whole Fried Chicken Family Pack', payment: 'Cash', amount: 420 },
+    { id: 'OR-2026-0840', date: new Date(Date.now() - 2 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), cashier: 'M. Santos', items: '3× Spicy Chicken Rice Bowl', payment: 'Maya', amount: 297 },
+    { id: 'OR-2026-0839', date: new Date(Date.now() - 3 * 86400000).toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' }), cashier: 'M. Santos', items: '2× Crispy Chicken Popcorn (Large)', payment: 'Cash', amount: 170 }
   ],
   salesByDay: [41000, 52000, 37000, 61000, 68000, 54000, 58000],
   spoilageLoss: 1420
