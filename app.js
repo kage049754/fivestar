@@ -151,7 +151,7 @@ function shell() {
 }
 
 function pageHead(meta, actions = '') {
-  return `<div class="page-head"><div><div class="eyebrow">FireStar Operations Console</div><h1>${meta.title}</h1><p class="page-subtitle">${meta.subtitle}</p></div><div class="head-actions">${actions}</div></div>`;
+  return `<div class="page-head"><div><div class="eyebrow">FiveStar ERP Operations Console</div><h1>${meta.title}</h1><p class="page-subtitle">${meta.subtitle}</p></div><div class="head-actions">${actions}</div></div>`;
 }
 
 function kpi(label, value, note, tone = '') {
@@ -273,13 +273,15 @@ function setPage(page) {
 
 function adjustInventory(id, amount, kind = 'adjust', reason = '') {
   const item = getInventoryItem(id);
-  if (!item) return;
-  item.qty = Math.max(0, item.qty + amount);
+  if (!item || !Number.isFinite(Number(amount))) return false;
+  if (item.qty + amount < 0) return false;
+  item.qty += amount;
   if (kind === 'restock') item.poRestocks = (item.poRestocks || 0) + Math.max(0, amount);
   if (kind === 'bom') item.bomUsage = (item.bomUsage || 0) + Math.max(0, -amount);
   if (kind === 'adjust' && reason) state.auditLog.unshift({ date: 'Nov 22, 2026', item: item.name, amount, reason });
   state.auditLog = state.auditLog.slice(0, 25);
   save();
+  return true;
 }
 
 function addToCart(id) {
@@ -320,7 +322,7 @@ function completeSale() {
   state.paymentCounts[state.payment] = (state.paymentCounts[state.payment] || 0) + 1;
   state.paymentTotals[state.payment] = (state.paymentTotals[state.payment] || 0) + totals.total;
   state.cart.forEach((line) => { const metric = state.menuMetrics[line.id] || { sold: 0, revenue: 0 }; metric.sold += line.qty; metric.revenue += getMenuItem(line.id).price * line.qty; state.menuMetrics[line.id] = metric; });
-  state.recentTransactions.unshift({ id: `OR-2026-${String(843 + state.completedOrders - 142).padStart(4, '0')}`, cashier: 'M. Santos', items: state.cart.map((line) => `${line.qty}× ${getMenuItem(line.id).short}`).join(', '), payment: state.payment, amount: totals.total });
+  state.recentTransactions.unshift({ id: `OR-2026-${String(842 + state.completedOrders - 142).padStart(4, '0')}`, cashier: 'M. Santos', items: state.cart.map((line) => `${line.qty}× ${getMenuItem(line.id).short}`).join(', '), payment: state.payment, amount: totals.total });
   state.recentTransactions = state.recentTransactions.slice(0, 8);
   state.cart = [];
   state.tendered = 1000;
@@ -336,7 +338,7 @@ function openModal(type, payload = {}) {
   } else if (type === 'add-ingredient') {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Ingredient</h2><p>Create a new tracked ingredient for the BOM inventory ledger.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="ingredientForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Ingredient Name</label><input class="field-input" name="name" placeholder="e.g. Chili Garlic Sauce" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Poultry</option><option>Dry Goods</option><option>Packaging</option><option>Beverages</option></select></div><div class="form-field"><label class="field-label">Unit</label><input class="field-input" name="unit" placeholder="bottles" required /></div><div class="form-field"><label class="field-label">Starting Stock</label><input class="field-input" name="qty" type="number" min="0" value="0" required /></div><div class="form-field"><label class="field-label">Reorder Point</label><input class="field-input" name="reorder" type="number" min="0" value="5" required /></div><div class="form-field"><label class="field-label">Unit Cost</label><input class="field-input" name="cost" type="number" min="0" value="100" required /></div><div class="form-field"><label class="field-label">FIFO Expiry</label><input class="field-input" name="expiry" placeholder="Dec 30, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Add Ingredient</button></div></form></div></div>`;
   } else if (type === 'create-po') {
-    root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Create Purchase Order</h2><p>Start a supplier request for the next receiving cycle.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="poForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier</label><select class="field-select" name="supplier">${suppliers.map((vendor) => `<option value="${vendor.id}" ${payload.supplier === vendor.id ? 'selected' : ''}>${vendor.name}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Ingredient to Receive</label><select class="field-select" name="ingredient">${state.inventory.map((item) => `<option value="${item.id}">${esc(item.name)}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Qty</label><input class="field-input" name="qty" type="number" min="1" value="10" required /></div><div class="form-field full"><label class="field-label">Items Ordered</label><input class="field-input" name="items" placeholder="e.g. 20× Fresh Chicken Cuts (8-pc)" required /></div><div class="form-field"><label class="field-label">Estimated Total</label><input class="field-input" name="total" type="number" min="0" value="5600" required /></div><div class="form-field"><label class="field-label">Expected Date</label><input class="field-input" name="date" value="Nov 25, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Create Purchase Order</button></div></form></div></div>`;
+    root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Create Purchase Order</h2><p>Start a supplier request for the next receiving cycle.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="poForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier</label><select class="field-select" name="supplier">${suppliers.map((vendor) => `<option value="${vendor.id}" ${payload.supplier === vendor.id ? 'selected' : ''}>${vendor.name}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Ingredient to Receive</label><select class="field-select" name="ingredient">${state.inventory.map((item) => `<option value="${item.id}" ${payload.ingredient === item.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Qty</label><input class="field-input" name="qty" type="number" min="1" value="10" required /></div><div class="form-field full"><label class="field-label">Items Ordered</label><input class="field-input" name="items" placeholder="e.g. 20× Fresh Chicken Cuts (8-pc)" required /></div><div class="form-field"><label class="field-label">Estimated Total</label><input class="field-input" name="total" type="number" min="0" value="5600" required /></div><div class="form-field"><label class="field-label">Expected Date</label><input class="field-input" name="date" value="Nov 25, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Create Purchase Order</button></div></form></div></div>`;
   }
 }
 
@@ -374,13 +376,13 @@ function handleAction(action, data = {}) {
   if (action === 'set-payment') { state.payment = data.payment; save(); return render(); }
   if (action === 'complete-sale' || action === 'quick-checkout') return completeSale();
   if (action === 'clear-cart') { state.cart = []; save(); render(); return openToast('Order cleared', 'The current order has been reset.'); }
-  if (action === 'restock') { const item = getInventoryItem(data.id); if (item) { adjustInventory(item.id, item.reorder, 'restock', 'Manual restock'); render(); openToast('Restock received', `${item.name} increased by ${item.reorder} ${item.unit}.`); } else openModal('create-po'); return; }
+  if (action === 'restock') { const item = getInventoryItem(data.id); if (item) openModal('create-po', { ingredient: item.id }); else openModal('create-po'); return; }
   if (action === 'adjust') return openModal('adjust', { id: data.id });
   if (action === 'adjust-spoilage') return openModal('adjust', { id: state.inventory[0].id });
   if (action === 'add-ingredient') return openModal('add-ingredient');
   if (action === 'create-po') return openModal('create-po', { supplier: data.supplier });
-  if (action === 'approve-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po) { po.status = 'In Transit'; save(); render(); openToast('Purchase order approved', `${po.id} is now in transit from ${po.supplier}.`); } return; }
-  if (action === 'deliver-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po) { po.status = 'Delivered'; po.received = true; (po.lines || []).forEach((line) => adjustInventory(line.id, line.qty, 'restock', `PO ${po.id} received`)); save(); render(); openToast('Delivery received & synced', `${po.id} marked delivered. Ordered raw stock was updated automatically.`); } return; }
+  if (action === 'approve-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po?.status === 'Pending') { po.status = 'In Transit'; save(); render(); openToast('Purchase order approved', `${po.id} is now in transit from ${po.supplier}.`); } return; }
+  if (action === 'deliver-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (!po || po.status !== 'In Transit' || po.received) return openToast('Already processed', 'This purchase order cannot be received more than once.', 'error'); const validLines = (po.lines || []).filter((line) => getInventoryItem(line.id) && Number(line.qty) > 0); if (!validLines.length) return openToast('No receivable items', 'This purchase order has no valid inventory lines.', 'error'); validLines.forEach((line) => adjustInventory(line.id, Number(line.qty), 'restock', `PO ${po.id} received`)); po.status = 'Delivered'; po.received = true; save(); render(); openToast('Delivery received & synced', `${po.id} marked delivered. Ordered raw stock was updated automatically.`); return; }
   if (action === 'export-csv') return exportCSV();
   if (action === 'export-pdf') return exportPrintableReport();
   if (action === 'export-po') return exportPurchaseOrders();
@@ -419,10 +421,14 @@ document.addEventListener('submit', (event) => {
   if (form.id === 'adjustForm') {
     const item = getInventoryItem(data.get('id'));
     const amount = Number(data.get('amount') || 0);
-    if (item) { adjustInventory(item.id, amount, 'adjust', data.get('reason')); closeModal(); render(); openToast('Stock adjustment saved', `${item.name} adjusted by ${amount > 0 ? '+' : ''}${amount} ${item.unit}.`); }
+    if (!item) return;
+    if (!Number.isFinite(amount) || amount === 0) return openToast('Invalid adjustment', 'Enter a non-zero stock adjustment quantity.', 'error');
+    if (item.qty + amount < 0) return openToast('Insufficient stock', `Cannot reduce ${item.name} below zero. Current stock: ${item.qty} ${item.unit}.`, 'error');
+    adjustInventory(item.id, amount, 'adjust', data.get('reason')); closeModal(); render(); openToast('Stock adjustment saved', `${item.name} adjusted by ${amount > 0 ? '+' : ''}${amount} ${item.unit}.`);
   }
   if (form.id === 'ingredientForm') {
-    const name = String(data.get('name'));
+    const name = String(data.get('name') || '').trim();
+    if (!name || state.inventory.some((item) => item.name.toLowerCase() === name.toLowerCase())) return openToast('Ingredient already exists', 'Enter a unique ingredient name before saving.', 'error');
     const id = `ingredient-${Date.now()}`;
     state.inventory.push({ id, name, sku: `SKU: ${id.toUpperCase()} · Unit Cost: ${money(data.get('cost'))}`, category: data.get('category'), qty: Number(data.get('qty')), unit: data.get('unit'), reorder: Number(data.get('reorder')), expiry: data.get('expiry'), cost: Number(data.get('cost')), beginning: Number(data.get('qty')), poRestocks: 0, bomUsage: 0 });
     save(); closeModal(); render(); openToast('Ingredient added', `${name} is now tracked in the inventory ledger.`);
@@ -431,8 +437,10 @@ document.addEventListener('submit', (event) => {
     const supplier = suppliers.find((vendor) => vendor.id === data.get('supplier'));
     const ingredient = getInventoryItem(data.get('ingredient'));
     const qty = Number(data.get('qty') || 0);
-    const next = state.purchaseOrders.length + 114;
-    state.purchaseOrders.unshift({ id: `PO-2026-${String(next).padStart(4, '0')}`, date: data.get('date'), supplier: supplier?.name || 'New Supplier', items: data.get('items') || `${qty}× ${ingredient?.name || 'Ingredient'}`, lines: ingredient ? [{ id: ingredient.id, qty }] : [], total: Number(data.get('total')), status: 'Pending', received: false });
+    const total = Number(data.get('total') || 0);
+    if (!supplier || !ingredient || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(total) || total < 0) return openToast('Invalid purchase order', 'Choose a supplier and ingredient, then enter a valid quantity and total.', 'error');
+    const next = Math.max(114, ...state.purchaseOrders.map((po) => Number(String(po.id).split('-').pop()) || 0)) + 1;
+    state.purchaseOrders.unshift({ id: `PO-2026-${String(next).padStart(4, '0')}`, date: data.get('date'), supplier: supplier?.name || 'New Supplier', items: data.get('items') || `${qty}× ${ingredient?.name || 'Ingredient'}`, lines: ingredient ? [{ id: ingredient.id, qty }] : [], total, status: 'Pending', received: false });
     save(); closeModal(); render(); openToast('Purchase order created', 'The new PO is pending branch manager approval.');
   }
 });
