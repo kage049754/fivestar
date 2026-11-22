@@ -1,6 +1,6 @@
 import './styles.css';
 
-const menuItems = [
+const defaultMenuItems = [
   { id: 'classic', name: '1-Pc. Classic Fried Chicken Meal', short: '1-Pc. Classic Chicken', category: 'Fried Chicken', price: 89, stock: '112 in stock', desc: 'BOM: 1 cut, 1 rice, 1 gravy', bom: [{ id: 'chicken', qty: 1 }, { id: 'breading', qty: 1 }] },
   { id: 'spicy', name: '1-Pc. Spicy Chicken Rice Meal', short: '1-Pc. Spicy Chicken', category: 'Rice Meals', price: 95, stock: '84 in stock', desc: '1 Pc. hot & spicy, 1 rice', bom: [{ id: 'chicken', qty: 1 }, { id: 'breading', qty: 1 }] },
   { id: 'whole', name: 'Whole Fried Chicken (8-Pc)', short: 'Whole Chicken', category: 'Fried Chicken', price: 420, stock: '14 packs left', desc: 'BOM: 8 cuts, 120g fry mix', bom: [{ id: 'chicken', qty: 8 }, { id: 'breading', qty: 2 }] },
@@ -27,6 +27,7 @@ const defaultInventory = [
 
 const defaultState = {
   page: 'dashboard',
+  menuItems: defaultMenuItems,
   suppliers: defaultSuppliers,
   posCategory: 'All items',
   posSearch: '',
@@ -63,6 +64,7 @@ const defaultState = {
 
 const saved = JSON.parse(localStorage.getItem('fivestar-erp-demo') || localStorage.getItem('firestar-erp-demo') || 'null');
 const state = { ...defaultState, ...(saved || {}) };
+if (!Array.isArray(state.menuItems)) state.menuItems = defaultMenuItems.map((item) => ({ ...item, bom: item.bom.map((part) => ({ ...part })) }));
 if (!Array.isArray(state.suppliers)) state.suppliers = defaultSuppliers.map((vendor) => ({ ...vendor }));
 if (!Array.isArray(state.inventory) || !state.inventory.length) state.inventory = defaultInventory.map((item) => ({ ...item }));
 if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = defaultState.purchaseOrders.map((item) => ({ ...item }));
@@ -103,8 +105,14 @@ const dateRangeLabel = () => {
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const wholeMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-const getMenuItem = (id) => menuItems.find((item) => item.id === id);
+const getMenuItem = (id) => state.menuItems.find((item) => item.id === id);
 const getInventoryItem = (id) => state.inventory.find((item) => item.id === id);
+const isExpiringSoon = (item) => {
+  const expiry = new Date(item.expiry);
+  if (Number.isNaN(expiry.getTime())) return false;
+  const days = (expiry.getTime() - today().setHours(0, 0, 0, 0)) / 86400000;
+  return days >= 0 && days <= 30;
+};
 const nextReceiptId = () => {
   const latest = state.recentTransactions.reduce((max, tx) => Math.max(max, Number(String(tx.id).split('-').pop()) || 0), 0);
   return `OR-${today().getFullYear()}-${String(latest + 1).padStart(4, '0')}`;
@@ -214,16 +222,16 @@ function renderDashboard(meta) {
 function renderPOS(meta) {
   const categories = ['All items', 'Fried Chicken', 'Rice Meals', 'Snacks & Drinks'];
   const query = state.posSearch.trim().toLowerCase();
-  const products = menuItems.filter((item) => (state.posCategory === 'All items' || item.category === state.posCategory) && (!query || `${item.name} ${item.desc}`.toLowerCase().includes(query)));
+  const products = state.menuItems.filter((item) => (state.posCategory === 'All items' || item.category === state.posCategory) && (!query || `${item.name} ${item.desc}`.toLowerCase().includes(query)));
   const totals = orderTotals();
   const bom = {};
   state.cart.forEach((line) => { const item = getMenuItem(line.id); item?.bom.forEach((part) => { bom[part.id] = (bom[part.id] || 0) + part.qty * line.qty; }); });
   const stockReady = Object.entries(bom).every(([id, qty]) => (getInventoryItem(id)?.qty || 0) >= qty);
-  return `${pageHead(meta, '<button class="btn btn-outline" data-action="clear-cart">Clear Current Order</button><button class="btn btn-primary" data-action="quick-checkout">Complete Demo Sale</button>')}
+  return `${pageHead(meta, '<button class="btn btn-outline" data-action="add-menu-item">+ Add Menu Item</button><button class="btn btn-outline" data-action="clear-cart">Clear Current Order</button><button class="btn btn-primary" data-action="quick-checkout">Complete Sale</button>')}
     <div class="pos-layout">
       <div class="menu-panel">
         <div class="panel"><div class="menu-toolbar"><div class="tabs">${categories.map((category) => `<button class="tab ${state.posCategory === category ? 'active' : ''}" data-pos-category="${category}">${category}</button>`).join('')}</div><div class="search-wrap"><span class="search-icon">⌕</span><input id="posSearch" class="search-input" placeholder="Search menu item…" value="${esc(state.posSearch)}" /></div></div>
-          <div class="product-grid">${products.map((item) => `<div class="product-card"><span class="product-stock ${item.id === 'whole' ? 'warn' : ''}">${productAvailability(item).label}</span><h3>${esc(item.name)}</h3><p>${esc(item.desc)}</p><div class="product-bottom"><div class="product-price">${money(item.price)}</div><button class="btn btn-dark btn-small" data-action="add-cart" data-id="${item.id}" ${productAvailability(item).canAdd ? '' : 'disabled'}>+ Add to Cart</button></div></div>`).join('') || '<div class="empty-state" style="grid-column:1/-1">No menu items match this search.</div>'}</div>
+          <div class="product-grid">${products.map((item) => `<div class="product-card"><span class="product-stock ${productAvailability(item).available <= 5 ? 'warn' : ''}">${productAvailability(item).label}</span><h3>${esc(item.name)}</h3><p>${esc(item.desc)}</p><div class="product-bottom"><div class="product-price">${money(item.price)}</div><button class="btn btn-dark btn-small" data-action="add-cart" data-id="${item.id}" ${productAvailability(item).canAdd ? '' : 'disabled'}>+ Add to Cart</button></div></div>`).join('') || '<div class="empty-state" style="grid-column:1/-1">No menu items match this search.</div>'}</div>
         </div>
         <div class="panel bom-preview"><div class="panel-title-row"><div><div class="panel-title">Live Bill of Materials (BOM) Auto-Deduction Preview</div><div class="panel-caption">Completing the active cart will automatically subtract these raw ingredients.</div></div><span class="status-pill ok">Stock Check Ready</span></div><div class="bom-items">${Object.entries(bom).map(([id, qty], index) => { const item = getInventoryItem(id); return `<div class="bom-item ${index % 3 === 2 ? 'yellow' : ''}"><div><strong>${esc(item?.name || id)}</strong><span>Current balance: ${item?.qty || 0} ${item?.unit || 'units'}</span></div><div class="bom-qty">-${qty} ${item?.unit || 'unit'}</div></div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1">Add menu items to preview ingredient deductions.</div>'}</div><div class="subtext" style="margin-top:12px;color:var(--green);font-weight:800">${stockReady ? '✓ Stock validation passed: all required recipe ingredients are above minimum threshold.' : '! Stock validation failed: insufficient ingredient balance for this order.'}</div></div>
       </div>
@@ -239,9 +247,9 @@ function renderPOS(meta) {
 function renderInventory(meta) {
   const totalValue = state.inventory.reduce((sum, item) => sum + item.qty * item.cost, 0);
   const low = state.inventory.filter((item) => stockStatus(item).className !== 'ok').length;
-  const expiring = state.inventory.filter((item) => item.expiry.includes('Nov')).length;
+  const expiring = state.inventory.filter(isExpiringSoon).length;
   const query = state.inventorySearch.trim().toLowerCase();
-  const rows = state.inventory.filter((item) => (!query || `${item.name} ${item.sku}`.toLowerCase().includes(query)) && (state.inventoryFilter === 'All Stock' || (state.inventoryFilter === 'Low & Critical' && stockStatus(item).className !== 'ok') || (state.inventoryFilter === 'FIFO Expiring Soon' && item.expiry.includes('Nov'))));
+  const rows = state.inventory.filter((item) => (!query || `${item.name} ${item.sku}`.toLowerCase().includes(query)) && (state.inventoryFilter === 'All Stock' || (state.inventoryFilter === 'Low & Critical' && stockStatus(item).className !== 'ok') || (state.inventoryFilter === 'FIFO Expiring Soon' && isExpiringSoon(item))));
   return `${pageHead(meta, '<button class="btn btn-outline" data-action="adjust-spoilage">Log Spoilage / Adjust</button><button class="btn btn-primary" data-action="add-ingredient">+ Add Ingredient</button>')}
     <div class="inventory-summary"><div class="mini-stat"><div><div class="mini-stat-label">Tracked Raw Ingredients</div><div class="mini-stat-value">${state.inventory.length} Items</div></div><div class="mini-stat-icon">▤</div></div><div class="mini-stat"><div><div class="mini-stat-label">Total Stock Valuation</div><div class="mini-stat-value">${wholeMoney(totalValue)}</div></div><div class="mini-stat-icon">₱</div></div><div class="mini-stat"><div><div class="mini-stat-label">Reorder Alerts</div><div class="mini-stat-value" style="color:var(--red)">${low} Flagged</div></div><div class="mini-stat-icon">!</div></div><div class="mini-stat"><div><div class="mini-stat-label">FIFO Expiry Watch</div><div class="mini-stat-value" style="color:var(--gold)">${expiring} Batches</div></div><div class="mini-stat-icon" style="color:var(--gold);background:var(--gold-soft)">◷</div></div></div>
     <div class="panel"><div class="toolbar"><div class="tabs">${['All Stock', 'Low & Critical', 'FIFO Expiring Soon'].map((filter) => `<button class="tab ${state.inventoryFilter === filter ? 'active' : ''}" data-inventory-filter="${filter}">${filter}</button>`).join('')}</div><div class="search-wrap"><span class="search-icon">⌕</span><input id="inventorySearch" class="search-input" placeholder="Search ingredient or SKU…" value="${esc(state.inventorySearch)}" /></div></div>
@@ -272,7 +280,7 @@ function renderReports(meta) {
   ];
   const paymentTotal = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
   const orderTotal = Object.values(state.paymentCounts).reduce((sum, value) => sum + value, 0);
-  const topProducts = menuItems.map((item) => ({ ...item, ...(state.menuMetrics[item.id] || { sold: 0, revenue: 0 }) })).sort((a, b) => b.revenue - a.revenue).slice(0, 4);
+  const topProducts = state.menuItems.map((item) => ({ ...item, ...(state.menuMetrics[item.id] || { sold: 0, revenue: 0 }) })).sort((a, b) => b.revenue - a.revenue).slice(0, 4);
   return `${pageHead(meta, `<div style="display:flex;align-items:center;gap:7px"><label class="field-label" style="margin:0">Date Range</label><select class="field-select" id="reportRange" style="width:auto"><option ${state.reportRange === 'Nov 1 – Nov 22, 2026' ? 'selected' : ''}>Nov 1 – Nov 22, 2026</option><option ${state.reportRange === 'Oct 1 – Oct 31, 2026' ? 'selected' : ''}>Oct 1 – Oct 31, 2026</option><option ${state.reportRange === 'Q4 2026' ? 'selected' : ''}>Q4 2026</option></select></div><button class="btn btn-outline" data-action="export-csv">Export CSV</button><button class="btn btn-primary" data-action="export-pdf">Export PDF Report</button>`)}
     <div class="kpi-grid">${kpi('Monthly Gross Revenue', money(reportRevenue), '+18.4% vs last month', 'positive')}${kpi('Cost of Goods Sold (COGS)', money(reportCogs), '36.3% Food Cost Ratio', '')}${kpi('Gross Profit Margin', money(reportProfit), '63.7% Net Margin', 'positive')}${kpi('Spoilage & Variance Loss', money(state.spoilageLoss), `${reportRevenue ? (state.spoilageLoss / reportRevenue * 100).toFixed(2) : '0.00'}% of gross revenue`, '')}</div>
     <div class="report-grid"><div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Sales Breakdown by Payment Channel</div><div class="panel-caption">Verified POS shift settlements across Cash and E-Wallets</div></div><span class="status-pill ok">${orderTotal.toLocaleString()} Orders</span></div><div class="payment-bars">${paymentRows.map((row) => { const amount = state.paymentTotals[row.key]; const pct = paymentTotal ? amount / paymentTotal * 100 : 0; return `<div class="payment-bar-line"><div class="payment-bar-head"><span>${row.label} (${state.paymentCounts[row.key].toLocaleString()} orders)</span><span>${money(amount)} · ${pct.toFixed(1)}%</span></div><div class="progress ${row.cls}"><span style="width:${pct}%"></span></div></div>`; }).join('')}</div><div class="subtext" style="margin-top:18px">Total Receipts Audited: ${orderTotal.toLocaleString()} POS Transactions · Average Order Value: ${money(orderTotal ? paymentTotal / orderTotal : 0)}</div></div>
@@ -359,6 +367,8 @@ function openModal(type, payload = {}) {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Adjust Stock Ledger</h2><p>Apply a positive or negative quantity adjustment for ${esc(item.name)}.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="adjustForm"><input type="hidden" name="id" value="${item.id}" /><div class="form-grid"><div class="form-field"><label class="field-label">Adjustment Qty</label><input class="field-input" name="amount" type="number" value="0" required /></div><div class="form-field"><label class="field-label">Reason</label><select class="field-select" name="reason"><option>Spoilage</option><option>Manual Count</option><option>Receiving Correction</option><option>Transfer</option></select></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Save Adjustment</button></div></form></div></div>`;
   } else if (type === 'add-ingredient') {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Ingredient</h2><p>Create a new tracked ingredient for the BOM inventory ledger.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="ingredientForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Ingredient Name</label><input class="field-input" name="name" placeholder="e.g. Chili Garlic Sauce" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Poultry</option><option>Dry Goods</option><option>Packaging</option><option>Beverages</option></select></div><div class="form-field"><label class="field-label">Unit</label><input class="field-input" name="unit" placeholder="bottles" required /></div><div class="form-field"><label class="field-label">Starting Stock</label><input class="field-input" name="qty" type="number" min="0" value="0" required /></div><div class="form-field"><label class="field-label">Reorder Point</label><input class="field-input" name="reorder" type="number" min="0" value="5" required /></div><div class="form-field"><label class="field-label">Unit Cost</label><input class="field-input" name="cost" type="number" min="0" value="100" required /></div><div class="form-field"><label class="field-label">FIFO Expiry</label><input class="field-input" name="expiry" placeholder="Dec 30, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Add Ingredient</button></div></form></div></div>`;
+  } else if (type === 'add-menu-item') {
+    root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Menu Item</h2><p>Create a POS product and link its recipe to tracked inventory.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="menuForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Menu Item Name</label><input class="field-input" name="name" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Fried Chicken</option><option>Rice Meals</option><option>Snacks & Drinks</option></select></div><div class="form-field"><label class="field-label">Selling Price (₱)</label><input class="field-input" name="price" type="number" min="0.01" step="0.01" required /></div><div class="form-field full"><label class="field-label">Description</label><input class="field-input" name="desc" required /></div><div class="form-field full"><label class="field-label">Recipe Ingredient</label><select class="field-select" name="ingredient">${state.inventory.map((item) => `<option value="${item.id}">${esc(item.name)} (${esc(item.unit)})</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Ingredient Qty per Serving</label><input class="field-input" name="ingredientQty" type="number" min="1" value="1" required /></div><div class="form-field"><label class="field-label">Short Name</label><input class="field-input" name="short" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Save Menu Item</button></div></form></div></div>`;
   } else if (type === 'add-supplier') {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Supplier</h2><p>Add a vendor to the live supplier directory and purchase-order form.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="supplierForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier Name</label><input class="field-input" name="name" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Poultry</option><option>Dry Goods</option><option>Packaging</option><option>Beverages</option><option>Equipment</option><option>Other</option></select></div><div class="form-field"><label class="field-label">Lead Time</label><input class="field-input" name="lead" placeholder="1–2 Business Days" required /></div><div class="form-field full"><label class="field-label">Contact Details</label><input class="field-input" name="contact" placeholder="Contact person · Phone number or email" required /></div><div class="form-field full"><label class="field-label">Address / Location</label><input class="field-input" name="detail" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Save Supplier</button></div></form></div></div>`;
   } else if (type === 'create-po') {
@@ -404,6 +414,7 @@ function handleAction(action, data = {}) {
   if (action === 'adjust') return openModal('adjust', { id: data.id });
   if (action === 'adjust-spoilage') return openModal('adjust', { id: state.inventory[0].id });
   if (action === 'add-ingredient') return openModal('add-ingredient');
+  if (action === 'add-menu-item') return openModal('add-menu-item');
   if (action === 'add-supplier') return openModal('add-supplier');
   if (action === 'create-po') return openModal('create-po', { supplier: data.supplier });
   if (action === 'approve-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po?.status === 'Pending') { po.status = 'In Transit'; save(); render(); openToast('Purchase order approved', `${po.id} is now in transit from ${po.supplier}.`); } return; }
@@ -457,6 +468,18 @@ document.addEventListener('submit', (event) => {
     const id = `ingredient-${Date.now()}`;
     state.inventory.push({ id, name, sku: `SKU: ${id.toUpperCase()} · Unit Cost: ${money(data.get('cost'))}`, category: data.get('category'), qty: Number(data.get('qty')), unit: data.get('unit'), reorder: Number(data.get('reorder')), expiry: data.get('expiry'), cost: Number(data.get('cost')), beginning: Number(data.get('qty')), poRestocks: 0, bomUsage: 0 });
     save(); closeModal(); render(); openToast('Ingredient added', `${name} is now tracked in the inventory ledger.`);
+  }
+  if (form.id === 'menuForm') {
+    const name = String(data.get('name') || '').trim();
+    const price = Number(data.get('price'));
+    const ingredient = getInventoryItem(data.get('ingredient'));
+    const ingredientQty = Number(data.get('ingredientQty'));
+    if (!name || state.menuItems.some((item) => item.name.toLowerCase() === name.toLowerCase())) return openToast('Menu item already exists', 'Enter a unique menu item name.', 'error');
+    if (!Number.isFinite(price) || price <= 0 || !ingredient || !Number.isInteger(ingredientQty) || ingredientQty < 1) return openToast('Invalid menu item', 'Enter a valid price and recipe ingredient quantity.', 'error');
+    const id = `menu-${Date.now()}`;
+    state.menuItems.push({ id, name, short: String(data.get('short') || name).trim(), category: data.get('category'), price, desc: String(data.get('desc') || '').trim(), bom: [{ id: ingredient.id, qty: ingredientQty }] });
+    state.menuMetrics[id] = { sold: 0, revenue: 0 };
+    save(); closeModal(); render(); openToast('Menu item added', `${name} is now available in the POS catalog and uses ${ingredient.name} from inventory.`);
   }
   if (form.id === 'supplierForm') {
     const name = String(data.get('name') || '').trim();
