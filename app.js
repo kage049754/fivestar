@@ -36,7 +36,7 @@ const defaultState = {
   tendered: 1000,
   grossSales: 18450,
   completedOrders: 142,
-  reportRange: 'Nov 1 – Nov 22, 2026',
+  reportRange: dateRangeLabel(),
   paymentCounts: { Cash: 1412, GCash: 874, Maya: 318 },
   paymentTotals: { Cash: 185846, GCash: 114688, Maya: 42176 },
   menuMetrics: { classic: { sold: 265, revenue: 113300 }, spicy: { sold: 940, revenue: 83660 }, whole: { sold: 610, revenue: 57950 }, popcorn: { sold: 480, revenue: 40800 } },
@@ -56,7 +56,8 @@ const defaultState = {
     { id: 'OR-2026-0840', cashier: 'M. Santos', items: '3× Spicy Chicken Rice Bowl', payment: 'Maya', amount: 297 },
     { id: 'OR-2026-0839', cashier: 'M. Santos', items: '2× Crispy Chicken Popcorn (Large)', payment: 'Cash', amount: 170 }
   ],
-  salesByDay: [41, 52, 37, 61, 68, 54, 58]
+  salesByDay: [41000, 52000, 37000, 61000, 68000, 54000, 58000],
+  spoilageLoss: 1420
 };
 
 const saved = JSON.parse(localStorage.getItem('fivestar-erp-demo') || localStorage.getItem('firestar-erp-demo') || 'null');
@@ -65,7 +66,9 @@ if (!Array.isArray(state.inventory) || !state.inventory.length) state.inventory 
 if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = defaultState.purchaseOrders.map((item) => ({ ...item }));
 if (!Array.isArray(state.recentTransactions)) state.recentTransactions = defaultState.recentTransactions.map((item) => ({ ...item }));
 if (!Array.isArray(state.auditLog)) state.auditLog = [];
-if (!state.reportRange) state.reportRange = defaultState.reportRange;
+if (!state.reportRange || state.reportRange === 'Nov 1 – Nov 22, 2026') state.reportRange = dateRangeLabel();
+state.spoilageLoss ??= defaultState.spoilageLoss;
+if (!Array.isArray(state.salesByDay) || state.salesByDay.length !== 7) state.salesByDay = [...defaultState.salesByDay];
 state.paymentCounts = { ...defaultState.paymentCounts, ...(state.paymentCounts || {}) };
 state.paymentTotals = { ...defaultState.paymentTotals, ...(state.paymentTotals || {}) };
 state.menuMetrics = { ...defaultState.menuMetrics, ...(state.menuMetrics || {}) };
@@ -88,11 +91,26 @@ const navItems = [
   { id: 'reports', label: 'Reports & Analytics', icon: '▥' }
 ];
 
+const today = () => new Date();
+const formatDate = (date = today()) => date.toLocaleDateString('en-PH', { month: 'short', day: '2-digit', year: 'numeric' });
+const dateRangeLabel = () => {
+  const now = today();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return `${start.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} – ${formatDate(now)}`;
+};
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const wholeMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const getMenuItem = (id) => menuItems.find((item) => item.id === id);
 const getInventoryItem = (id) => state.inventory.find((item) => item.id === id);
+const nextReceiptId = () => {
+  const latest = state.recentTransactions.reduce((max, tx) => Math.max(max, Number(String(tx.id).split('-').pop()) || 0), 0);
+  return `OR-${today().getFullYear()}-${String(latest + 1).padStart(4, '0')}`;
+};
+const nextPurchaseOrderId = () => {
+  const latest = state.purchaseOrders.reduce((max, po) => Math.max(max, Number(String(po.id).split('-').pop()) || 0), 0);
+  return `PO-${today().getFullYear()}-${String(latest + 1).padStart(4, '0')}`;
+};
 const save = () => localStorage.setItem('fivestar-erp-demo', JSON.stringify({ ...state, page: undefined, posSearch: '', inventorySearch: '' }));
 
 function stockStatus(item) {
@@ -144,7 +162,7 @@ function shell() {
       <div class="server-card"><div class="server-row"><span class="server-dot"></span>Demo Mode: Local Storage</div><div class="server-meta">Laguna · Paradahan, Tanza<br><strong>Role: Branch Manager</strong></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="mobileMenu" aria-label="Open navigation">☰</button><div class="crumb">FiveStar ERP&nbsp; / &nbsp;<strong>${meta.label}</strong></div></div><div class="topbar-actions"><div class="date-chip">◷&nbsp; Nov 1 – Nov 22, 2026</div><button class="btn btn-outline" data-nav="suppliers">+ Create PO</button><button class="btn btn-primary" data-nav="pos">Open POS Terminal</button></div></header>
+      <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="mobileMenu" aria-label="Open navigation">☰</button><div class="crumb">FiveStar ERP&nbsp; / &nbsp;<strong>${meta.label}</strong></div></div><div class="topbar-actions"><div class="date-chip">◷&nbsp; ${dateRangeLabel()}</div><button class="btn btn-outline" data-nav="suppliers">+ Create PO</button><button class="btn btn-primary" data-nav="pos">Open POS Terminal</button></div></header>
       <section class="content" id="view">${renderPage(meta)}</section>
     </main>
   </div>`;
@@ -169,17 +187,17 @@ function renderPage(meta) {
 function renderDashboard(meta) {
   const lowStock = state.inventory.filter((item) => stockStatus(item).className !== 'ok');
   const pending = state.purchaseOrders.filter((po) => po.status !== 'Delivered').length;
-  const maxSales = Math.max(...state.salesByDay);
+  const maxSales = Math.max(1, ...state.salesByDay);
   return `${pageHead(meta, '<button class="btn btn-outline" data-nav="reports">View Reports</button><button class="btn btn-primary" data-nav="pos">Start New Sale</button>')}
     <div class="kpi-grid">
-      ${kpi("Today's Gross Sales", money(state.grossSales), '+14.2% vs yesterday', 'positive')}
+      ${kpi(`Today's Gross Sales · ${formatDate()}`, money(state.grossSales), 'Updated after each completed sale', 'positive')}
       ${kpi('Completed POS Orders', `${state.completedOrders} Orders`, 'BOM stock auto-synced', '')}
       ${kpi('Low-Stock Alerts', `${lowStock.length} Ingredients`, lowStock.length ? 'Critical · Reorder Needed' : 'All levels healthy', 'alert')}
       ${kpi('Pending Supplier POs', `${pending} Orders`, `${money(state.purchaseOrders.filter((po) => po.status === 'Pending').reduce((sum, po) => sum + po.total, 0))} incoming`, '')}
     </div>
     <div class="grid-2">
       <div class="panel"><div class="panel-title-row"><div><div class="panel-title">Weekly Sales vs. Raw Ingredient Consumption (₱)</div><div class="panel-caption">Paradahan Branch POS revenue compared against BOM ingredient usage</div></div><span class="status-pill ok">Gross Sales</span></div>
-        <div class="chart"><div class="chart-axis"><span>₱75k</span><span>₱50k</span><span>₱25k</span><span>₱0</span></div><div class="chart-main">${state.salesByDay.map((value, index) => `<div class="chart-group"><div class="bar" style="height:${Math.max(9, (value / maxSales) * 82)}%"></div><div class="bar alt" style="height:${Math.max(7, (value * .53 / maxSales) * 82)}%"></div><span class="chart-day">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</span></div>`).join('')}</div></div>
+        <div class="chart"><div class="chart-axis"><span>${wholeMoney(maxSales)}</span><span>${wholeMoney(maxSales * .66)}</span><span>${wholeMoney(maxSales * .33)}</span><span>₱0</span></div><div class="chart-main">${state.salesByDay.map((value, index) => `<div class="chart-group"><div class="bar" style="height:${Math.max(3, (value / maxSales) * 82)}%"></div><div class="bar alt" style="height:${Math.max(2, ((state.inventory.reduce((sum, item) => sum + item.bomUsage * item.cost, 0) / 7) / maxSales) * 82)}%"></div><span class="chart-day">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</span></div>`).join('')}</div></div>
         <div class="legend"><span><i></i>Gross Sales</span><span><i class="alt"></i>Stock Cost</span></div>
       </div>
       <div class="panel"><div class="panel-title-row"><div><div class="panel-title">Live Low-Stock Watchlist</div><div class="panel-caption">Reorder points updated from the inventory ledger</div></div><span class="status-pill critical">${lowStock.length} alerts</span></div>
@@ -187,7 +205,7 @@ function renderDashboard(meta) {
       </div>
     </div>
     <div class="panel" style="margin-top:15px"><div class="panel-title-row"><div><div class="panel-title">Recent POS Transactions & Auto-Deducted Raw Stock (BOM)</div><div class="panel-caption">Latest receipt activity from the branch terminal</div></div><button class="text-link" data-nav="reports">View Full Ledger →</button></div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Receipt #</th><th>Cashier</th><th>Menu Items Sold</th><th>Auto-Deducted Inventory</th><th>Payment</th><th>Amount</th></tr></thead><tbody>${state.recentTransactions.slice(0, 5).map((tx) => `<tr><td><strong>${esc(tx.id)}</strong><div class="subtext">Nov 22, 2026</div></td><td>${esc(tx.cashier)}</td><td>${esc(tx.items)}</td><td><span class="subtext">BOM deduction synced</span></td><td><span class="status-pill ${tx.payment === 'Cash' ? 'ok' : 'transit'}">${esc(tx.payment)}</span></td><td class="money">${money(tx.amount)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Receipt #</th><th>Cashier</th><th>Menu Items Sold</th><th>Auto-Deducted Inventory</th><th>Payment</th><th>Amount</th></tr></thead><tbody>${state.recentTransactions.slice(0, 5).map((tx) => `<tr><td><strong>${esc(tx.id)}</strong><div class="subtext">${esc(tx.date || 'Opening demo record')}</div></td><td>${esc(tx.cashier)}</td><td>${esc(tx.items)}</td><td><span class="subtext">BOM deduction synced</span></td><td><span class="status-pill ${tx.payment === 'Cash' ? 'ok' : 'transit'}">${esc(tx.payment)}</span></td><td class="money">${money(tx.amount)}</td></tr>`).join('')}</tbody></table></div>
     </div>`;
 }
 
@@ -207,7 +225,7 @@ function renderPOS(meta) {
         </div>
         <div class="panel bom-preview"><div class="panel-title-row"><div><div class="panel-title">Live Bill of Materials (BOM) Auto-Deduction Preview</div><div class="panel-caption">Completing the active cart will automatically subtract these raw ingredients.</div></div><span class="status-pill ok">Stock Check Ready</span></div><div class="bom-items">${Object.entries(bom).map(([id, qty], index) => { const item = getInventoryItem(id); return `<div class="bom-item ${index % 3 === 2 ? 'yellow' : ''}"><div><strong>${esc(item?.name || id)}</strong><span>Current balance: ${item?.qty || 0} ${item?.unit || 'units'}</span></div><div class="bom-qty">-${qty} ${item?.unit || 'unit'}</div></div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1">Add menu items to preview ingredient deductions.</div>'}</div><div class="subtext" style="margin-top:12px;color:var(--green);font-weight:800">${stockReady ? '✓ Stock validation passed: all required recipe ingredients are above minimum threshold.' : '! Stock validation failed: insufficient ingredient balance for this order.'}</div></div>
       </div>
-      <div class="panel order-panel"><div class="panel-title-row"><div><div class="panel-title">Current Order</div><div class="order-no">OR-2026-0843 · Paradahan Branch</div></div><button class="text-link" data-action="clear-cart">Clear All</button></div>
+      <div class="panel order-panel"><div class="panel-title-row"><div><div class="panel-title">Current Order</div><div class="order-no">${nextReceiptId()} · Paradahan Branch</div></div><button class="text-link" data-action="clear-cart">Clear All</button></div>
         <div class="order-items">${state.cart.length ? state.cart.map((line) => { const item = getMenuItem(line.id); return `<div class="order-item"><div><div class="order-item-name">${esc(item.name)}</div><div class="order-item-meta">${money(item.price)} each</div></div><div style="display:flex;align-items:center;gap:7px"><div class="qty-control"><button data-action="cart-minus" data-id="${item.id}">−</button><span>${line.qty}</span><button data-action="cart-plus" data-id="${item.id}">+</button></div><strong style="font-size:10px;min-width:54px;text-align:right">${money(item.price * line.qty)}</strong></div></div>`; }).join('') : '<div class="empty-state">Your order is empty.<br>Add a menu item to start.</div>'}</div>
         <div class="payment-block"><label class="field-label">Payment Method</label><div class="payment-grid">${['Cash', 'GCash', 'Maya'].map((method) => `<button class="payment-btn ${state.payment === method ? 'active' : ''}" data-action="set-payment" data-payment="${method}">${method}</button>`).join('')}</div><div class="tendered-row"><div><label class="field-label">Amount Tendered (₱)</label><input class="field-input" id="tendered" type="number" min="0" step="1" value="${Number(state.tendered || 0)}" /></div><div class="change-box"><span>Exact Change</span><strong>${money(totals.change)}</strong></div></div></div>
         <div class="order-total"><div class="total-row"><span>Subtotal (${state.cart.reduce((sum, line) => sum + line.qty, 0)} items)</span><strong>${money(totals.subtotal)}</strong></div><div class="total-row"><span>Change Due</span><strong style="color:var(--green)">${money(totals.change)}</strong></div><div class="total-row grand"><span>TOTAL PAYABLE</span><strong>${money(totals.total)}</strong></div></div>
@@ -242,20 +260,19 @@ function renderSuppliers(meta) {
 
 function renderReports(meta) {
   const valuation = state.inventory.reduce((sum, item) => sum + item.qty * item.cost, 0);
-  const incrementalSales = state.grossSales - 18450;
-  const reportRevenue = 342890 + incrementalSales;
-  const reportCogs = 124610 + Math.max(0, Math.round(incrementalSales * .36));
+  const reportRevenue = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+  const reportCogs = Math.round(reportRevenue * 0.363);
   const reportProfit = reportRevenue - reportCogs;
   const paymentRows = [
     { key: 'Cash', label: 'Cash Payments', cls: '' },
     { key: 'GCash', label: 'GCash E-Wallet', cls: 'red' },
     { key: 'Maya', label: 'Maya E-Wallet', cls: 'gold' }
   ];
-  const paymentTotal = Object.values(state.paymentTotals).reduce((sum, value) => sum + value, 0);
+  const paymentTotal = Object.values(state.paymentTotals).reduce((sum, value) => sum + Number(value || 0), 0);
   const orderTotal = Object.values(state.paymentCounts).reduce((sum, value) => sum + value, 0);
-  const topProducts = menuItems.slice(0, 4).map((item) => ({ ...item, ...(state.menuMetrics[item.id] || { sold: 0, revenue: 0 }) }));
+  const topProducts = menuItems.map((item) => ({ ...item, ...(state.menuMetrics[item.id] || { sold: 0, revenue: 0 }) })).sort((a, b) => b.revenue - a.revenue).slice(0, 4);
   return `${pageHead(meta, `<div style="display:flex;align-items:center;gap:7px"><label class="field-label" style="margin:0">Date Range</label><select class="field-select" id="reportRange" style="width:auto"><option ${state.reportRange === 'Nov 1 – Nov 22, 2026' ? 'selected' : ''}>Nov 1 – Nov 22, 2026</option><option ${state.reportRange === 'Oct 1 – Oct 31, 2026' ? 'selected' : ''}>Oct 1 – Oct 31, 2026</option><option ${state.reportRange === 'Q4 2026' ? 'selected' : ''}>Q4 2026</option></select></div><button class="btn btn-outline" data-action="export-csv">Export CSV</button><button class="btn btn-primary" data-action="export-pdf">Export PDF Report</button>`)}
-    <div class="kpi-grid">${kpi('Monthly Gross Revenue', money(reportRevenue), '+18.4% vs last month', 'positive')}${kpi('Cost of Goods Sold (COGS)', money(reportCogs), '36.3% Food Cost Ratio', '')}${kpi('Gross Profit Margin', money(reportProfit), '63.7% Net Margin', 'positive')}${kpi('Spoilage & Variance Loss', money(1420), '0.41% Waste (On-Target)', '')}</div>
+    <div class="kpi-grid">${kpi('Monthly Gross Revenue', money(reportRevenue), '+18.4% vs last month', 'positive')}${kpi('Cost of Goods Sold (COGS)', money(reportCogs), '36.3% Food Cost Ratio', '')}${kpi('Gross Profit Margin', money(reportProfit), '63.7% Net Margin', 'positive')}${kpi('Spoilage & Variance Loss', money(state.spoilageLoss), `${reportRevenue ? (state.spoilageLoss / reportRevenue * 100).toFixed(2) : '0.00'}% of gross revenue`, '')}</div>
     <div class="report-grid"><div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Sales Breakdown by Payment Channel</div><div class="panel-caption">Verified POS shift settlements across Cash and E-Wallets</div></div><span class="status-pill ok">${orderTotal.toLocaleString()} Orders</span></div><div class="payment-bars">${paymentRows.map((row) => { const amount = state.paymentTotals[row.key]; const pct = paymentTotal ? amount / paymentTotal * 100 : 0; return `<div class="payment-bar-line"><div class="payment-bar-head"><span>${row.label} (${state.paymentCounts[row.key].toLocaleString()} orders)</span><span>${money(amount)} · ${pct.toFixed(1)}%</span></div><div class="progress ${row.cls}"><span style="width:${pct}%"></span></div></div>`; }).join('')}</div><div class="subtext" style="margin-top:18px">Total Receipts Audited: ${orderTotal.toLocaleString()} POS Transactions · Average Order Value: ${money(orderTotal ? paymentTotal / orderTotal : 0)}</div></div>
       <div class="panel report-card report-highlight"><div class="panel-title-row"><div><div class="panel-title">Top-Selling Menu Items & Margin Analysis</div><div class="panel-caption">Ranked by Paradahan Branch revenue and BOM ingredient cost</div></div></div><div class="ranking">${topProducts.map((item, index) => `<div class="rank-row"><span class="rank-number">${index + 1}</span><div><div class="rank-name">${esc(item.name)}</div><div class="rank-meta">${item.sold.toLocaleString()} sold</div></div><strong class="money">${wholeMoney(item.revenue)}</strong></div>`).join('')}</div></div></div>
     <div class="panel" style="margin-top:15px"><div class="panel-title-row"><div><div class="panel-title">Itemized Inventory Usage & Current Asset Valuation Summary</div><div class="panel-caption">Live view of raw ingredient movement and ending stock value</div></div><button class="text-link" data-nav="inventory">View Full Valuation Sheet →</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Raw Ingredient</th><th>Beginning</th><th>PO Restocks</th><th>BOM Usage</th><th>Ending Stock</th><th>Unit Cost</th><th>Asset Value</th></tr></thead><tbody>${state.inventory.slice(0, 4).map((item) => `<tr><td><strong>${esc(item.name)}</strong></td><td>${item.beginning} ${item.unit}</td><td style="color:var(--green);font-weight:800">+${item.poRestocks} ${item.unit}</td><td style="color:var(--red);font-weight:800">-${item.bomUsage} ${item.unit}</td><td><strong>${item.qty} ${item.unit}</strong></td><td>${money(item.cost)}</td><td class="money">${money(item.qty * item.cost)}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;justify-content:space-between;margin-top:14px"><span class="subtext">Showing top 4 high-value ingredients · Total Branch Inventory Asset Valuation (All ${state.inventory.length} items): ${money(valuation)}</span><span class="text-link">View Full Valuation Sheet →</span></div></div>`;
@@ -278,7 +295,10 @@ function adjustInventory(id, amount, kind = 'adjust', reason = '') {
   item.qty += amount;
   if (kind === 'restock') item.poRestocks = (item.poRestocks || 0) + Math.max(0, amount);
   if (kind === 'bom') item.bomUsage = (item.bomUsage || 0) + Math.max(0, -amount);
-  if (kind === 'adjust' && reason) state.auditLog.unshift({ date: 'Nov 22, 2026', item: item.name, amount, reason });
+  if (kind === 'adjust' && reason) {
+    state.auditLog.unshift({ date: formatDate(), item: item.name, amount, reason });
+    if (reason === 'Spoilage' && amount < 0) state.spoilageLoss = (state.spoilageLoss || 0) + Math.abs(amount) * item.cost;
+  }
   state.auditLog = state.auditLog.slice(0, 25);
   save();
   return true;
@@ -318,11 +338,11 @@ function completeSale() {
   Object.entries(deductions).forEach(([id, amount]) => adjustInventory(id, -amount, 'bom'));
   state.grossSales += totals.total;
   state.completedOrders += 1;
-  state.salesByDay[6] += Math.round(totals.total / 10);
+  state.salesByDay[(today().getDay() + 6) % 7] += totals.total;
   state.paymentCounts[state.payment] = (state.paymentCounts[state.payment] || 0) + 1;
   state.paymentTotals[state.payment] = (state.paymentTotals[state.payment] || 0) + totals.total;
   state.cart.forEach((line) => { const metric = state.menuMetrics[line.id] || { sold: 0, revenue: 0 }; metric.sold += line.qty; metric.revenue += getMenuItem(line.id).price * line.qty; state.menuMetrics[line.id] = metric; });
-  state.recentTransactions.unshift({ id: `OR-2026-${String(842 + state.completedOrders - 142).padStart(4, '0')}`, cashier: 'M. Santos', items: state.cart.map((line) => `${line.qty}× ${getMenuItem(line.id).short}`).join(', '), payment: state.payment, amount: totals.total });
+  state.recentTransactions.unshift({ id: nextReceiptId(), date: formatDate(), cashier: 'M. Santos', items: state.cart.map((line) => `${line.qty}× ${getMenuItem(line.id).short}`).join(', '), payment: state.payment, amount: totals.total });
   state.recentTransactions = state.recentTransactions.slice(0, 8);
   state.cart = [];
   state.tendered = 1000;
@@ -338,7 +358,7 @@ function openModal(type, payload = {}) {
   } else if (type === 'add-ingredient') {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Ingredient</h2><p>Create a new tracked ingredient for the BOM inventory ledger.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="ingredientForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Ingredient Name</label><input class="field-input" name="name" placeholder="e.g. Chili Garlic Sauce" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Poultry</option><option>Dry Goods</option><option>Packaging</option><option>Beverages</option></select></div><div class="form-field"><label class="field-label">Unit</label><input class="field-input" name="unit" placeholder="bottles" required /></div><div class="form-field"><label class="field-label">Starting Stock</label><input class="field-input" name="qty" type="number" min="0" value="0" required /></div><div class="form-field"><label class="field-label">Reorder Point</label><input class="field-input" name="reorder" type="number" min="0" value="5" required /></div><div class="form-field"><label class="field-label">Unit Cost</label><input class="field-input" name="cost" type="number" min="0" value="100" required /></div><div class="form-field"><label class="field-label">FIFO Expiry</label><input class="field-input" name="expiry" placeholder="Dec 30, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Add Ingredient</button></div></form></div></div>`;
   } else if (type === 'create-po') {
-    root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Create Purchase Order</h2><p>Start a supplier request for the next receiving cycle.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="poForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier</label><select class="field-select" name="supplier">${suppliers.map((vendor) => `<option value="${vendor.id}" ${payload.supplier === vendor.id ? 'selected' : ''}>${vendor.name}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Ingredient to Receive</label><select class="field-select" name="ingredient">${state.inventory.map((item) => `<option value="${item.id}" ${payload.ingredient === item.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Qty</label><input class="field-input" name="qty" type="number" min="1" value="10" required /></div><div class="form-field full"><label class="field-label">Items Ordered</label><input class="field-input" name="items" placeholder="e.g. 20× Fresh Chicken Cuts (8-pc)" required /></div><div class="form-field"><label class="field-label">Estimated Total</label><input class="field-input" name="total" type="number" min="0" value="5600" required /></div><div class="form-field"><label class="field-label">Expected Date</label><input class="field-input" name="date" value="Nov 25, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Create Purchase Order</button></div></form></div></div>`;
+    root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Create Purchase Order</h2><p>Start a supplier request for the next receiving cycle.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="poForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier</label><select class="field-select" name="supplier">${suppliers.map((vendor) => `<option value="${vendor.id}" ${payload.supplier === vendor.id ? 'selected' : ''}>${vendor.name}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Ingredient to Receive</label><select class="field-select" name="ingredient">${state.inventory.map((item) => `<option value="${item.id}" ${payload.ingredient === item.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Qty</label><input class="field-input" name="qty" type="number" min="1" value="10" required /></div><div class="form-field full"><label class="field-label">Items Ordered</label><input class="field-input" name="items" placeholder="e.g. 20× Fresh Chicken Cuts (8-pc)" required /></div><div class="form-field"><label class="field-label">Estimated Total</label><input class="field-input" name="total" type="number" min="0" value="5600" required /></div><div class="form-field"><label class="field-label">Expected Date</label><input class="field-input" name="date" value="${formatDate(new Date(today().getTime() + 3 * 86400000))}" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Create Purchase Order</button></div></form></div></div>`;
   }
 }
 
@@ -439,8 +459,7 @@ document.addEventListener('submit', (event) => {
     const qty = Number(data.get('qty') || 0);
     const total = Number(data.get('total') || 0);
     if (!supplier || !ingredient || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(total) || total < 0) return openToast('Invalid purchase order', 'Choose a supplier and ingredient, then enter a valid quantity and total.', 'error');
-    const next = Math.max(114, ...state.purchaseOrders.map((po) => Number(String(po.id).split('-').pop()) || 0)) + 1;
-    state.purchaseOrders.unshift({ id: `PO-2026-${String(next).padStart(4, '0')}`, date: data.get('date'), supplier: supplier?.name || 'New Supplier', items: data.get('items') || `${qty}× ${ingredient?.name || 'Ingredient'}`, lines: ingredient ? [{ id: ingredient.id, qty }] : [], total, status: 'Pending', received: false });
+    state.purchaseOrders.unshift({ id: nextPurchaseOrderId(), date: data.get('date') || formatDate(), supplier: supplier?.name || 'New Supplier', items: data.get('items') || `${qty}× ${ingredient?.name || 'Ingredient'}`, lines: ingredient ? [{ id: ingredient.id, qty }] : [], total, status: 'Pending', received: false });
     save(); closeModal(); render(); openToast('Purchase order created', 'The new PO is pending branch manager approval.');
   }
 });
