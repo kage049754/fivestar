@@ -59,7 +59,7 @@ const defaultState = {
   salesByDay: [41, 52, 37, 61, 68, 54, 58]
 };
 
-const saved = JSON.parse(localStorage.getItem('firestar-erp-demo') || 'null');
+const saved = JSON.parse(localStorage.getItem('fivestar-erp-demo') || 'null');
 const state = { ...defaultState, ...(saved || {}) };
 if (!Array.isArray(state.inventory) || !state.inventory.length) state.inventory = defaultInventory.map((item) => ({ ...item }));
 if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = defaultState.purchaseOrders.map((item) => ({ ...item }));
@@ -101,6 +101,12 @@ function stockStatus(item) {
   return { label: 'In Stock', className: 'ok' };
 }
 
+function productAvailability(menuItem) {
+  const limits = menuItem.bom.map((part) => Math.floor((getInventoryItem(part.id)?.qty || 0) / part.qty));
+  const available = limits.length ? Math.max(0, Math.min(...limits)) : 0;
+  return { available, label: available ? `${available} servings available` : 'Out of stock', canAdd: available > 0 };
+}
+
 function orderTotals() {
   const subtotal = state.cart.reduce((sum, line) => {
     const item = getMenuItem(line.id);
@@ -129,13 +135,13 @@ function shell() {
   const meta = pageMeta[state.page] || pageMeta.dashboard;
   return `<div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><div class="brand-mark">★</div><div><div class="brand-name">FireStar ERP</div><div class="brand-sub">Paradahan Branch</div></div></div>
+      <div class="brand"><div class="brand-mark">★</div><div><div class="brand-name">FiveStar ERP</div><div class="brand-sub">Paradahan Branch</div></div></div>
       <div class="nav-label">Operations</div>
       <nav class="nav">
         ${navItems.map((item) => `<button class="nav-button ${state.page === item.id ? 'active' : ''}" data-nav="${item.id}"><span class="nav-icon">${item.icon}</span>${item.label}</button>`).join('')}
       </nav>
       <div class="sidebar-spacer"></div>
-      <div class="server-card"><div class="server-row"><span class="server-dot"></span>Local Server: Online</div><div class="server-meta">Laguna · Paradahan, Tanza<br><strong>Role: Branch Manager</strong></div></div>
+      <div class="server-card"><div class="server-row"><span class="server-dot"></span>Demo Mode: Local Storage</div><div class="server-meta">Laguna · Paradahan, Tanza<br><strong>Role: Branch Manager</strong></div></div>
     </aside>
     <main class="main">
       <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="mobileMenu" aria-label="Open navigation">☰</button><div class="crumb">FireStar ERP&nbsp; / &nbsp;<strong>${meta.label}</strong></div></div><div class="topbar-actions"><div class="date-chip">◷&nbsp; Nov 1 – Nov 22, 2026</div><button class="btn btn-outline" data-nav="suppliers">+ Create PO</button><button class="btn btn-primary" data-nav="pos">Open POS Terminal</button></div></header>
@@ -197,9 +203,9 @@ function renderPOS(meta) {
     <div class="pos-layout">
       <div class="menu-panel">
         <div class="panel"><div class="menu-toolbar"><div class="tabs">${categories.map((category) => `<button class="tab ${state.posCategory === category ? 'active' : ''}" data-pos-category="${category}">${category}</button>`).join('')}</div><div class="search-wrap"><span class="search-icon">⌕</span><input id="posSearch" class="search-input" placeholder="Search menu item…" value="${esc(state.posSearch)}" /></div></div>
-          <div class="product-grid">${products.map((item) => `<div class="product-card"><span class="product-stock ${item.id === 'whole' ? 'warn' : ''}">${item.stock}</span><h3>${esc(item.name)}</h3><p>${esc(item.desc)}</p><div class="product-bottom"><div class="product-price">${money(item.price)}</div><button class="btn btn-dark btn-small" data-action="add-cart" data-id="${item.id}">+ Add to Cart</button></div></div>`).join('') || '<div class="empty-state" style="grid-column:1/-1">No menu items match this search.</div>'}</div>
+          <div class="product-grid">${products.map((item) => `<div class="product-card"><span class="product-stock ${item.id === 'whole' ? 'warn' : ''}">${productAvailability(item).label}</span><h3>${esc(item.name)}</h3><p>${esc(item.desc)}</p><div class="product-bottom"><div class="product-price">${money(item.price)}</div><button class="btn btn-dark btn-small" data-action="add-cart" data-id="${item.id}" ${productAvailability(item).canAdd ? '' : 'disabled'}>+ Add to Cart</button></div></div>`).join('') || '<div class="empty-state" style="grid-column:1/-1">No menu items match this search.</div>'}</div>
         </div>
-        <div class="panel bom-preview"><div class="panel-title-row"><div><div class="panel-title">Live Bill of Materials (BOM) Auto-Deduction Preview</div><div class="panel-caption">Completing the active cart will automatically subtract these raw ingredients.</div></div><span class="status-pill ok">DB Transaction Ready</span></div><div class="bom-items">${Object.entries(bom).map(([id, qty], index) => { const item = getInventoryItem(id); return `<div class="bom-item ${index % 3 === 2 ? 'yellow' : ''}"><div><strong>${esc(item?.name || id)}</strong><span>Current balance: ${item?.qty || 0} ${item?.unit || 'units'}</span></div><div class="bom-qty">-${qty} ${item?.unit || 'unit'}</div></div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1">Add menu items to preview ingredient deductions.</div>'}</div><div class="subtext" style="margin-top:12px;color:var(--green);font-weight:800">${stockReady ? '✓ Stock validation passed: all required recipe ingredients are above minimum threshold.' : '! Stock validation failed: insufficient ingredient balance for this order.'}</div></div>
+        <div class="panel bom-preview"><div class="panel-title-row"><div><div class="panel-title">Live Bill of Materials (BOM) Auto-Deduction Preview</div><div class="panel-caption">Completing the active cart will automatically subtract these raw ingredients.</div></div><span class="status-pill ok">Stock Check Ready</span></div><div class="bom-items">${Object.entries(bom).map(([id, qty], index) => { const item = getInventoryItem(id); return `<div class="bom-item ${index % 3 === 2 ? 'yellow' : ''}"><div><strong>${esc(item?.name || id)}</strong><span>Current balance: ${item?.qty || 0} ${item?.unit || 'units'}</span></div><div class="bom-qty">-${qty} ${item?.unit || 'unit'}</div></div>`; }).join('') || '<div class="empty-state" style="grid-column:1/-1">Add menu items to preview ingredient deductions.</div>'}</div><div class="subtext" style="margin-top:12px;color:var(--green);font-weight:800">${stockReady ? '✓ Stock validation passed: all required recipe ingredients are above minimum threshold.' : '! Stock validation failed: insufficient ingredient balance for this order.'}</div></div>
       </div>
       <div class="panel order-panel"><div class="panel-title-row"><div><div class="panel-title">Current Order</div><div class="order-no">OR-2026-0843 · Paradahan Branch</div></div><button class="text-link" data-action="clear-cart">Clear All</button></div>
         <div class="order-items">${state.cart.length ? state.cart.map((line) => { const item = getMenuItem(line.id); return `<div class="order-item"><div><div class="order-item-name">${esc(item.name)}</div><div class="order-item-meta">${money(item.price)} each</div></div><div style="display:flex;align-items:center;gap:7px"><div class="qty-control"><button data-action="cart-minus" data-id="${item.id}">−</button><span>${line.qty}</span><button data-action="cart-plus" data-id="${item.id}">+</button></div><strong style="font-size:10px;min-width:54px;text-align:right">${money(item.price * line.qty)}</strong></div></div>`; }).join('') : '<div class="empty-state">Your order is empty.<br>Add a menu item to start.</div>'}</div>
@@ -220,7 +226,7 @@ function renderInventory(meta) {
     <div class="inventory-summary"><div class="mini-stat"><div><div class="mini-stat-label">Tracked Raw Ingredients</div><div class="mini-stat-value">${state.inventory.length} Items</div></div><div class="mini-stat-icon">▤</div></div><div class="mini-stat"><div><div class="mini-stat-label">Total Stock Valuation</div><div class="mini-stat-value">${wholeMoney(totalValue)}</div></div><div class="mini-stat-icon">₱</div></div><div class="mini-stat"><div><div class="mini-stat-label">Reorder Alerts</div><div class="mini-stat-value" style="color:var(--red)">${low} Flagged</div></div><div class="mini-stat-icon">!</div></div><div class="mini-stat"><div><div class="mini-stat-label">FIFO Expiry Watch</div><div class="mini-stat-value" style="color:var(--gold)">${expiring} Batches</div></div><div class="mini-stat-icon" style="color:var(--gold);background:var(--gold-soft)">◷</div></div></div>
     <div class="panel"><div class="toolbar"><div class="tabs">${['All Stock', 'Low & Critical', 'FIFO Expiring Soon'].map((filter) => `<button class="tab ${state.inventoryFilter === filter ? 'active' : ''}" data-inventory-filter="${filter}">${filter}</button>`).join('')}</div><div class="search-wrap"><span class="search-icon">⌕</span><input id="inventorySearch" class="search-input" placeholder="Search ingredient or SKU…" value="${esc(state.inventorySearch)}" /></div></div>
       <div class="table-wrap"><table class="data-table"><thead><tr><th>SKU & Ingredient Name</th><th>Category</th><th>Current Stock</th><th>Reorder Pt.</th><th>FIFO Expiry</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map((item) => { const status = stockStatus(item); return `<tr><td><strong>${esc(item.name)}</strong><div class="subtext">${esc(item.sku)}</div></td><td>${esc(item.category)}</td><td><strong>${item.qty} ${esc(item.unit)}</strong></td><td>${item.reorder} ${esc(item.unit)}</td><td>${esc(item.expiry)}</td><td><span class="status-pill ${status.className}">${status.label}</span></td><td><div style="display:flex;gap:5px"><button class="btn btn-dark btn-small" data-action="restock" data-id="${item.id}">Restock</button><button class="btn btn-outline btn-small" data-action="adjust" data-id="${item.id}">Adjust</button></div></td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty-state">No ingredients match the current filter.</div></td></tr>'}</tbody></table></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="subtext">Showing ${rows.length} of ${state.inventory.length} tracked ingredients · ${state.auditLog.length} audit entries recorded this session</span><div style="display:flex;gap:6px"><button class="btn btn-outline btn-small">Previous</button><button class="btn btn-outline btn-small">Next</button></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="subtext">Showing ${rows.length} of ${state.inventory.length} tracked ingredients · ${state.auditLog.length} audit entries recorded this session</span><div style="display:flex;gap:6px"></div></div>
     </div>`;
 }
 
@@ -277,6 +283,10 @@ function adjustInventory(id, amount, kind = 'adjust', reason = '') {
 }
 
 function addToCart(id) {
+  const product = getMenuItem(id);
+  const availability = productAvailability(product);
+  const currentQty = state.cart.find((item) => item.id === id)?.qty || 0;
+  if (!availability.canAdd || currentQty >= availability.available) return openToast('Insufficient ingredients', `${product.short}: only ${availability.available} serving(s) can be prepared from current stock.`, 'error');
   const line = state.cart.find((item) => item.id === id);
   if (line) line.qty += 1;
   else state.cart.push({ id, qty: 1 });
@@ -288,6 +298,7 @@ function addToCart(id) {
 function removeFromCart(id, delta) {
   const line = state.cart.find((item) => item.id === id);
   if (!line) return;
+  if (delta > 0) { const product = getMenuItem(id); const availability = productAvailability(product); if (line.qty >= availability.available) return openToast('Insufficient ingredients', `Only ${availability.available} serving(s) are available for ${product.short}.`, 'error'); }
   line.qty += delta;
   if (line.qty <= 0) state.cart = state.cart.filter((item) => item.id !== id);
   save();
@@ -331,6 +342,22 @@ function openModal(type, payload = {}) {
 
 function closeModal() { document.querySelector('#modalRoot').innerHTML = ''; }
 
+function exportPrintableReport() {
+  const rows = state.inventory.map((item) => `<tr><td>${esc(item.name)}</td><td>${item.qty} ${esc(item.unit)}</td><td>${item.reorder}</td><td>${money(item.qty * item.cost)}</td></tr>`).join('');
+  const html = `<!doctype html><html><head><title>FiveStar ERP Report</title><style>body{font:14px Arial;padding:32px;color:#172338}h1{margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}th{background:#f2f4f7}</style></head><body><h1>FiveStar ERP</h1><p>Inventory Valuation Report · ${new Date().toLocaleDateString()}</p><table><thead><tr><th>Ingredient</th><th>Stock</th><th>Reorder Point</th><th>Asset Value</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  const win = window.open('', '_blank');
+  if (!win) return openToast('Pop-up blocked', 'Allow pop-ups to print or save this report as PDF.', 'error');
+  win.document.write(html); win.document.close(); win.focus(); win.print();
+}
+
+function exportPurchaseOrders() {
+  const rows = [['PO Number','Date','Supplier','Items','Total','Status'], ...state.purchaseOrders.map((po) => [po.id,po.date,po.supplier,po.items,po.total,po.status])];
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"','""')}"`).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  const link = document.createElement('a'); link.href=url; link.download='fivestar-purchase-orders.csv'; link.click(); URL.revokeObjectURL(url);
+  openToast('PO ledger exported', 'Purchase order records downloaded as CSV.');
+}
+
 function exportCSV() {
   const lines = [['Ingredient', 'Category', 'Current Stock', 'Unit', 'Reorder Point', 'Unit Cost', 'Asset Value'], ...state.inventory.map((item) => [item.name, item.category, item.qty, item.unit, item.reorder, item.cost, item.qty * item.cost])];
   const csv = lines.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
@@ -355,7 +382,8 @@ function handleAction(action, data = {}) {
   if (action === 'approve-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po) { po.status = 'In Transit'; save(); render(); openToast('Purchase order approved', `${po.id} is now in transit from ${po.supplier}.`); } return; }
   if (action === 'deliver-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po) { po.status = 'Delivered'; po.received = true; (po.lines || []).forEach((line) => adjustInventory(line.id, line.qty, 'restock', `PO ${po.id} received`)); save(); render(); openToast('Delivery received & synced', `${po.id} marked delivered. Ordered raw stock was updated automatically.`); } return; }
   if (action === 'export-csv') return exportCSV();
-  if (action === 'export-pdf' || action === 'export-po') return openToast('Demo export queued', 'A production build would generate the branded PDF through the reporting service.');
+  if (action === 'export-pdf') return exportPrintableReport();
+  if (action === 'export-po') return exportPurchaseOrders();
 }
 
 document.addEventListener('click', (event) => {
