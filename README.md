@@ -1,6 +1,6 @@
 # FiveStar ERP
 
-Browser-based ERP demonstration for a restaurant branch. This is a client-side classroom demo; it does not process real payments or synchronize data between devices.
+Browser-based ERP demonstration for a restaurant branch. It is a client-side classroom demo: it does not process real payments or synchronize records between devices.
 
 ## Run locally
 
@@ -16,18 +16,18 @@ npm run build
 npm run preview
 ```
 
-## Demo modules
+## Functional modules
 
-- Dashboard overview and operational indicators
-- POS sales terminal with cart, payment methods, change calculation, receipt numbering, and ingredient/BOM deduction
-- Inventory ledger with stock adjustment validation, purchase-order restocking, reorder alerts, and expiry watch
-- Supplier directory and purchase orders with approval and one-time stock receiving workflow
-- Reports with inventory CSV export, purchase-order CSV export, and printable inventory report that can be saved as PDF through the browser print dialog
+- **Dashboard:** live branch sales, completed orders, open purchase orders, stock alerts, and recent transactions.
+- **POS & Sales:** searchable menu catalog, categories, cart quantities, payment methods, tender/change validation, generated receipt numbers, and automatic recipe/BOM stock deductions.
+- **Inventory & BOM:** searchable stock ledger, dynamic reorder status, expiry checks, stock adjustments, spoilage logging, new ingredients, and purchase-order restocking.
+- **Suppliers & Purchase Orders:** supplier directory with add-supplier workflow, generated PO numbers, quantity-based cost estimates, approval, delivery receiving, one-time stock sync, and CSV export.
+- **Reports & Analytics:** payment breakdown, menu rankings, inventory valuation, calculated COGS/gross profit, full operations CSV export, and printable operations report (Save as PDF from the browser print dialog).
 
 ## Data and limitations
 
-Demo state is stored in the current browser using localStorage. It is intended for a classroom demonstration and does not provide shared accounts, server-side persistence, or real payment processing. Sample supplier, inventory, and transaction details are fictional demo data. Restocking from Inventory creates a purchase order; stock is increased only after the PO is approved and marked delivered.
+Demo records and changes are stored in the current browser using localStorage. They persist in that browser but do not sync between devices. The app does not provide server-side accounts, shared branch data, or real payment processing. Default suppliers, menu items, inventory, and opening sales figures are fictional seed data. Users can add menu items, suppliers, and ingredients. Completing a sale updates local sales totals and deducts recipe ingredients; receiving an approved/in-transit PO adds its inventory quantities once.
 
-## Build verification
+## Deployment and verification
 
-GitHub Actions runs `npm install` and `npm run build` on pushes and pull requests to `main`, then uploads the production `dist/` directory as the `fivestar-erp-dist` artifact.
+GitHub Actions runs `npm install` and `npm run build` on pushes to `main`, uploads the `dist/` output as the `github-pages` artifact, and deploys it to GitHub Pages.
