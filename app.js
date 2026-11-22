@@ -59,7 +59,7 @@ const defaultState = {
   salesByDay: [41, 52, 37, 61, 68, 54, 58]
 };
 
-const saved = JSON.parse(localStorage.getItem('fivestar-erp-demo') || 'null');
+const saved = JSON.parse(localStorage.getItem('fivestar-erp-demo') || localStorage.getItem('firestar-erp-demo') || 'null');
 const state = { ...defaultState, ...(saved || {}) };
 if (!Array.isArray(state.inventory) || !state.inventory.length) state.inventory = defaultInventory.map((item) => ({ ...item }));
 if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = defaultState.purchaseOrders.map((item) => ({ ...item }));
@@ -93,7 +93,7 @@ const wholeMoney = (value) => `₱${Number(value || 0).toLocaleString('en-PH', {
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const getMenuItem = (id) => menuItems.find((item) => item.id === id);
 const getInventoryItem = (id) => state.inventory.find((item) => item.id === id);
-const save = () => localStorage.setItem('firestar-erp-demo', JSON.stringify({ ...state, page: undefined, posSearch: '', inventorySearch: '' }));
+const save = () => localStorage.setItem('fivestar-erp-demo', JSON.stringify({ ...state, page: undefined, posSearch: '', inventorySearch: '' }));
 
 function stockStatus(item) {
   if (item.qty <= Math.max(1, Math.ceil(item.reorder * 0.7))) return { label: 'Critical', className: 'critical' };
@@ -144,7 +144,7 @@ function shell() {
       <div class="server-card"><div class="server-row"><span class="server-dot"></span>Demo Mode: Local Storage</div><div class="server-meta">Laguna · Paradahan, Tanza<br><strong>Role: Branch Manager</strong></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="mobileMenu" aria-label="Open navigation">☰</button><div class="crumb">FireStar ERP&nbsp; / &nbsp;<strong>${meta.label}</strong></div></div><div class="topbar-actions"><div class="date-chip">◷&nbsp; Nov 1 – Nov 22, 2026</div><button class="btn btn-outline" data-nav="suppliers">+ Create PO</button><button class="btn btn-primary" data-nav="pos">Open POS Terminal</button></div></header>
+      <header class="topbar"><div class="topbar-left"><button class="menu-toggle" id="mobileMenu" aria-label="Open navigation">☰</button><div class="crumb">FiveStar ERP&nbsp; / &nbsp;<strong>${meta.label}</strong></div></div><div class="topbar-actions"><div class="date-chip">◷&nbsp; Nov 1 – Nov 22, 2026</div><button class="btn btn-outline" data-nav="suppliers">+ Create PO</button><button class="btn btn-primary" data-nav="pos">Open POS Terminal</button></div></header>
       <section class="content" id="view">${renderPage(meta)}</section>
     </main>
   </div>`;
@@ -363,7 +363,7 @@ function exportCSV() {
   const csv = lines.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a'); link.href = url; link.download = 'firestar-inventory-report.csv'; link.click(); URL.revokeObjectURL(url);
+  const link = document.createElement('a'); link.href = url; link.download = 'fivestar-inventory-report.csv'; link.click(); URL.revokeObjectURL(url);
   openToast('CSV export ready', 'The inventory valuation sheet was downloaded for your demo.');
 }
 
