@@ -10,7 +10,7 @@ const menuItems = [
   { id: 'family', name: 'Meal Boxes & Family Bucket', short: 'Family Bucket', category: 'Rice Meals', price: 520, stock: '22 in stock', desc: '8 cuts, 4 rice, 1 bucket', bom: [{ id: 'chicken', qty: 8 }, { id: 'breading', qty: 2 }] }
 ];
 
-const suppliers = [
+const defaultSuppliers = [
   { id: 'cavite', category: 'Poultry', name: 'Cavite Prime Poultry Supply', contact: 'Contact: R. Mendoza · 0917-554-8921', detail: 'Barangay San Juan, Cavite', lead: 'Same-Day Delivery' },
   { id: 'south', category: 'Dry Goods', name: 'South Luzon Food Ingredients', contact: 'Contact: A. Villanueva · 0918-432-1904', detail: 'Cabuyao, Laguna', lead: '1–2 Business Days' },
   { id: 'metro', category: 'Packaging', name: 'MetroPack Cavite Trading', contact: 'Contact: L. Reyes · 0922-881-3340', detail: 'Imus, Cavite', lead: '1–2 Business Days' }
@@ -27,6 +27,7 @@ const defaultInventory = [
 
 const defaultState = {
   page: 'dashboard',
+  suppliers: defaultSuppliers,
   posCategory: 'All items',
   posSearch: '',
   inventorySearch: '',
@@ -62,13 +63,14 @@ const defaultState = {
 
 const saved = JSON.parse(localStorage.getItem('fivestar-erp-demo') || localStorage.getItem('firestar-erp-demo') || 'null');
 const state = { ...defaultState, ...(saved || {}) };
+if (!Array.isArray(state.suppliers)) state.suppliers = defaultSuppliers.map((vendor) => ({ ...vendor }));
 if (!Array.isArray(state.inventory) || !state.inventory.length) state.inventory = defaultInventory.map((item) => ({ ...item }));
 if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = defaultState.purchaseOrders.map((item) => ({ ...item }));
 if (!Array.isArray(state.recentTransactions)) state.recentTransactions = defaultState.recentTransactions.map((item) => ({ ...item }));
 if (!Array.isArray(state.auditLog)) state.auditLog = [];
 if (!state.reportRange || state.reportRange === 'Nov 1 – Nov 22, 2026') state.reportRange = dateRangeLabel();
 state.spoilageLoss ??= defaultState.spoilageLoss;
-if (!Array.isArray(state.salesByDay) || state.salesByDay.length !== 7) state.salesByDay = [...defaultState.salesByDay];
+if (!Array.isArray(state.salesByDay) || state.salesByDay.length !== 7 || Math.max(...state.salesByDay) < 1000) state.salesByDay = [...defaultState.salesByDay];
 state.paymentCounts = { ...defaultState.paymentCounts, ...(state.paymentCounts || {}) };
 state.paymentTotals = { ...defaultState.paymentTotals, ...(state.paymentTotals || {}) };
 state.menuMetrics = { ...defaultState.menuMetrics, ...(state.menuMetrics || {}) };
@@ -250,8 +252,8 @@ function renderInventory(meta) {
 
 function renderSuppliers(meta) {
   const filtered = state.poFilter === 'All POs' ? state.purchaseOrders : state.purchaseOrders.filter((po) => po.status === state.poFilter);
-  return `${pageHead(meta, '<button class="btn btn-primary" data-action="create-po">+ Create Purchase Order</button>')}
-    <div class="vendor-grid">${suppliers.map((vendor) => `<div class="vendor-card"><div class="vendor-top"><span class="vendor-category">${vendor.category}</span><span class="vendor-active">Active Vendor</span></div><h3>${vendor.name}</h3><div class="vendor-contact">${vendor.contact}<br>${vendor.detail}</div><div class="vendor-footer"><span>Lead Time: ${vendor.lead}</span><button class="text-link" data-action="create-po" data-supplier="${vendor.id}">Create PO →</button></div></div>`).join('')}</div>
+  return `${pageHead(meta, '<button class="btn btn-outline" data-action="add-supplier">+ Add Supplier</button><button class="btn btn-primary" data-action="create-po">+ Create Purchase Order</button>')}
+    <div class="vendor-grid">${state.suppliers.map((vendor) => `<div class="vendor-card"><div class="vendor-top"><span class="vendor-category">${vendor.category}</span><span class="vendor-active">Active Vendor</span></div><h3>${vendor.name}</h3><div class="vendor-contact">${vendor.contact}<br>${vendor.detail}</div><div class="vendor-footer"><span>Lead Time: ${vendor.lead}</span><button class="text-link" data-action="create-po" data-supplier="${vendor.id}">Create PO →</button></div></div>`).join('')}</div>
     <div class="panel"><div class="panel-title-row"><div><div class="panel-title">Purchase Orders (PO) & Stock Receiving Tracker</div><div class="panel-caption">Marking a purchase order as Delivered automatically increments raw ingredient stock.</div></div><div class="tabs">${['All POs', 'Pending', 'In Transit', 'Delivered'].map((filter) => `<button class="tab ${state.poFilter === filter ? 'active' : ''}" data-po-filter="${filter}">${filter}${filter === 'All POs' ? ` (${state.purchaseOrders.length})` : ''}</button>`).join('')}</div></div>
       <div class="table-wrap"><table class="data-table"><thead><tr><th>PO Number</th><th>Supplier</th><th>Ordered Items</th><th>Total Cost</th><th>Status</th><th>Receiving Action</th></tr></thead><tbody>${filtered.map((po) => `<tr><td><strong>${esc(po.id)}</strong><div class="subtext">${esc(po.date)}</div></td><td>${esc(po.supplier)}</td><td>${esc(po.items)}</td><td class="money">${money(po.total)}</td><td>${statusPill(po.status)}</td><td>${po.status === 'Pending' ? `<button class="btn btn-dark btn-small" data-action="approve-po" data-id="${po.id}">Approve PO</button>` : po.status === 'In Transit' ? `<button class="btn btn-primary btn-small" data-action="deliver-po" data-id="${po.id}">Mark Delivered</button>` : '<span class="subtext" style="color:var(--green);font-weight:800">✓ Stock Synced</span>'}</td></tr>`).join('') || '<tr><td colspan="6"><div class="empty-state">No purchase orders in this view.</div></td></tr>'}</tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="subtext">Total Monthly Procurement Spend: ${money(state.purchaseOrders.reduce((sum, po) => sum + po.total, 0))} · Printable PDF purchase orders enabled via DemoPDF</span><button class="btn btn-outline btn-small" data-action="export-po">Export PO Ledger</button></div>
@@ -357,6 +359,8 @@ function openModal(type, payload = {}) {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Adjust Stock Ledger</h2><p>Apply a positive or negative quantity adjustment for ${esc(item.name)}.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="adjustForm"><input type="hidden" name="id" value="${item.id}" /><div class="form-grid"><div class="form-field"><label class="field-label">Adjustment Qty</label><input class="field-input" name="amount" type="number" value="0" required /></div><div class="form-field"><label class="field-label">Reason</label><select class="field-select" name="reason"><option>Spoilage</option><option>Manual Count</option><option>Receiving Correction</option><option>Transfer</option></select></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Save Adjustment</button></div></form></div></div>`;
   } else if (type === 'add-ingredient') {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Ingredient</h2><p>Create a new tracked ingredient for the BOM inventory ledger.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="ingredientForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Ingredient Name</label><input class="field-input" name="name" placeholder="e.g. Chili Garlic Sauce" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Poultry</option><option>Dry Goods</option><option>Packaging</option><option>Beverages</option></select></div><div class="form-field"><label class="field-label">Unit</label><input class="field-input" name="unit" placeholder="bottles" required /></div><div class="form-field"><label class="field-label">Starting Stock</label><input class="field-input" name="qty" type="number" min="0" value="0" required /></div><div class="form-field"><label class="field-label">Reorder Point</label><input class="field-input" name="reorder" type="number" min="0" value="5" required /></div><div class="form-field"><label class="field-label">Unit Cost</label><input class="field-input" name="cost" type="number" min="0" value="100" required /></div><div class="form-field"><label class="field-label">FIFO Expiry</label><input class="field-input" name="expiry" placeholder="Dec 30, 2026" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Add Ingredient</button></div></form></div></div>`;
+  } else if (type === 'add-supplier') {
+    root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Add Supplier</h2><p>Add a vendor to the live supplier directory and purchase-order form.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="supplierForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier Name</label><input class="field-input" name="name" required /></div><div class="form-field"><label class="field-label">Category</label><select class="field-select" name="category"><option>Poultry</option><option>Dry Goods</option><option>Packaging</option><option>Beverages</option><option>Equipment</option><option>Other</option></select></div><div class="form-field"><label class="field-label">Lead Time</label><input class="field-input" name="lead" placeholder="1–2 Business Days" required /></div><div class="form-field full"><label class="field-label">Contact Details</label><input class="field-input" name="contact" placeholder="Contact person · Phone number or email" required /></div><div class="form-field full"><label class="field-label">Address / Location</label><input class="field-input" name="detail" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Save Supplier</button></div></form></div></div>`;
   } else if (type === 'create-po') {
     root.innerHTML = `<div class="modal-backdrop" id="modalBackdrop"><div class="modal"><div class="modal-head"><div><h2>Create Purchase Order</h2><p>Start a supplier request for the next receiving cycle.</p></div><button class="close-btn" data-close-modal>×</button></div><form id="poForm"><div class="form-grid"><div class="form-field full"><label class="field-label">Supplier</label><select class="field-select" name="supplier">${suppliers.map((vendor) => `<option value="${vendor.id}" ${payload.supplier === vendor.id ? 'selected' : ''}>${vendor.name}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Ingredient to Receive</label><select class="field-select" name="ingredient">${state.inventory.map((item) => `<option value="${item.id}" ${payload.ingredient === item.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</select></div><div class="form-field"><label class="field-label">Qty</label><input class="field-input" name="qty" type="number" min="1" value="10" required /></div><div class="form-field full"><label class="field-label">Items Ordered</label><input class="field-input" name="items" placeholder="e.g. 20× Fresh Chicken Cuts (8-pc)" required /></div><div class="form-field"><label class="field-label">Estimated Total</label><input class="field-input" name="total" type="number" min="0" value="5600" required /></div><div class="form-field"><label class="field-label">Expected Date</label><input class="field-input" name="date" value="${formatDate(new Date(today().getTime() + 3 * 86400000))}" required /></div></div><div class="form-actions"><button type="button" class="btn btn-outline" data-close-modal>Cancel</button><button class="btn btn-primary">Create Purchase Order</button></div></form></div></div>`;
   }
@@ -400,6 +404,7 @@ function handleAction(action, data = {}) {
   if (action === 'adjust') return openModal('adjust', { id: data.id });
   if (action === 'adjust-spoilage') return openModal('adjust', { id: state.inventory[0].id });
   if (action === 'add-ingredient') return openModal('add-ingredient');
+  if (action === 'add-supplier') return openModal('add-supplier');
   if (action === 'create-po') return openModal('create-po', { supplier: data.supplier });
   if (action === 'approve-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (po?.status === 'Pending') { po.status = 'In Transit'; save(); render(); openToast('Purchase order approved', `${po.id} is now in transit from ${po.supplier}.`); } return; }
   if (action === 'deliver-po') { const po = state.purchaseOrders.find((item) => item.id === data.id); if (!po || po.status !== 'In Transit' || po.received) return openToast('Already processed', 'This purchase order cannot be received more than once.', 'error'); const validLines = (po.lines || []).filter((line) => getInventoryItem(line.id) && Number(line.qty) > 0); if (!validLines.length) return openToast('No receivable items', 'This purchase order has no valid inventory lines.', 'error'); validLines.forEach((line) => adjustInventory(line.id, Number(line.qty), 'restock', `PO ${po.id} received`)); po.status = 'Delivered'; po.received = true; save(); render(); openToast('Delivery received & synced', `${po.id} marked delivered. Ordered raw stock was updated automatically.`); return; }
@@ -453,8 +458,15 @@ document.addEventListener('submit', (event) => {
     state.inventory.push({ id, name, sku: `SKU: ${id.toUpperCase()} · Unit Cost: ${money(data.get('cost'))}`, category: data.get('category'), qty: Number(data.get('qty')), unit: data.get('unit'), reorder: Number(data.get('reorder')), expiry: data.get('expiry'), cost: Number(data.get('cost')), beginning: Number(data.get('qty')), poRestocks: 0, bomUsage: 0 });
     save(); closeModal(); render(); openToast('Ingredient added', `${name} is now tracked in the inventory ledger.`);
   }
+  if (form.id === 'supplierForm') {
+    const name = String(data.get('name') || '').trim();
+    if (!name || state.suppliers.some((vendor) => vendor.name.toLowerCase() === name.toLowerCase())) return openToast('Supplier already exists', 'Enter a unique supplier name.', 'error');
+    const id = `supplier-${Date.now()}`;
+    state.suppliers.push({ id, name, category: data.get('category'), contact: `Contact: ${String(data.get('contact') || '').trim()}`, detail: String(data.get('detail') || '').trim(), lead: String(data.get('lead') || '').trim() });
+    save(); closeModal(); render(); openToast('Supplier added', `${name} is now available in the supplier directory and PO form.`);
+  }
   if (form.id === 'poForm') {
-    const supplier = suppliers.find((vendor) => vendor.id === data.get('supplier'));
+    const supplier = state.suppliers.find((vendor) => vendor.id === data.get('supplier'));
     const ingredient = getInventoryItem(data.get('ingredient'));
     const qty = Number(data.get('qty') || 0);
     const total = Number(data.get('total') || 0);
